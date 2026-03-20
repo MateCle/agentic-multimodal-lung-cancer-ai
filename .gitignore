@@ -1,0 +1,21 @@
+# Data
+data/*
+!data/.gitignore
+*.zip
+*.parquet
+*.npy
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Environment
+.env
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
