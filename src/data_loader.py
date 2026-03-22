@@ -60,7 +60,6 @@ def load_patient(patient_id: str, raw_data: dict) -> Optional[dict]:
     record = raw_data[patient_id]
     avail = record["avail"]
 
-    # Convertiamo il float in intero per evitare bug di approssimazione
     available = [key for i, key in enumerate(MODALITY_KEYS) if int(avail[i]) == 1]
     missing = [key for i, key in enumerate(MODALITY_KEYS) if int(avail[i]) == 0]
 
