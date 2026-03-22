@@ -16,6 +16,7 @@ The orchestrator is built as a Directed Acyclic Graph (DAG) using LangGraph. Dat
 ## Repository Structure
 The project is organized to separate data ingestion, multi-agent orchestration, and evaluation:
 
+```text
 project/
 ├── data/                  # IGNORED BY GIT - Local storage for dataset files (cache_data.zip, .pkl, .json)
 ├── notebooks/             # Jupyter notebooks for Exploratory Data Analysis (EDA) and prototyping
@@ -30,12 +31,13 @@ project/
 ├── tests/                 # Integration and unit tests (Pytest)
 ├── requirements.txt       # Project dependencies
 └── README.md              # Project documentation
+```
 
 ## Setup & Installation
 
 ### 1. Clone the repository
 ```bash
-git clone [https://github.com/MateCle/agentic-multimodal-lung-cancer-ai.git](https://github.com/MateCle/agentic-multimodal-lung-cancer-ai.git)
+git clone https://github.com/MateCle/agentic-multimodal-lung-cancer-ai.git
 cd agentic-multimodal-lung-cancer-ai
 ```
 
