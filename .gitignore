@@ -19,3 +19,13 @@ env/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+
+# Logs & Caches
+*.log
+.ruff_cache/
+.pytest_cache/
