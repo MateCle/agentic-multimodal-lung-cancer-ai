@@ -26,7 +26,7 @@ def route_after_verifier(state: PatientState) -> Literal["predictor", "generator
     - Failed and under limit          -> Generator (Miner rules are reused).
     """
     attempts = sum(
-        1 for line in state["execution_log"] if "[Generator]" in line
+        1 for line in state["execution_log"] if "[Verifier] Overall" in line
     )
     if state["verification_passed"] or attempts >= MAX_REFINEMENT_ATTEMPTS:
         return "predictor"

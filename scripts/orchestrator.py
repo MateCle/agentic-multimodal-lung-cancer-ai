@@ -39,6 +39,7 @@ def _empty_state(patient_id: str) -> PatientState:
         "survival_prediction":  None,
         "routing_decision":     "",
         "execution_log":        [],
+        "correction_hints":     {},
     }
 
 
