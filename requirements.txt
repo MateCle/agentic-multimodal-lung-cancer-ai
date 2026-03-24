@@ -82,7 +82,7 @@ numpy==2.4.3
 orjson==3.11.7
 ormsgpack==1.12.2
 overrides==7.7.0
-packaging @ file:///C:/miniconda3/conda-bld/packaging_1761049096285/work
+packaging==23.2
 pandas==2.3.3
 pandocfilters==1.5.1
 parso==0.8.6
