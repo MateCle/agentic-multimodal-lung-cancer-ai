@@ -48,4 +48,6 @@ class PatientState(TypedDict):
 
     # Execution log: uses operator.add to concatenate logs from various nodes instead of overwriting them at each step.
     execution_log: Annotated[list[str], operator.add]
+    
+    # Feedback from the Verifier to guide the Generator during self-refinement
     correction_hints: dict[str, str]
