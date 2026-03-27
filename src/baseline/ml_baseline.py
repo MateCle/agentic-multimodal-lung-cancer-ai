@@ -32,14 +32,23 @@ SURVIVAL_TIME = "DSS.time"
 def zero_impute(patient: dict) -> np.ndarray:
     """
     Concatenate all modality features using zero-imputation for missing ones.
+    Strictly enforces dimension checks to prevent inhomogeneous arrays.
     Returns a single flat feature vector.
     """
     vectors = []
     for modality in MODALITY_KEYS:
-        if patient[modality] is not None:
-            vectors.append(patient[modality])
+        expected_dim = MODALITY_DIMS[modality]
+        val = patient.get(modality)
+        if val is not None:
+            val_arr = np.array(val).flatten()
+
+            if val_arr.size == expected_dim:
+                vectors.append(val_arr)
+            else:
+                vectors.append(np.zeros(expected_dim, dtype=np.float32))
         else:
-            vectors.append(np.zeros(MODALITY_DIMS[modality], dtype=np.float32))
+            vectors.append(np.zeros(expected_dim, dtype=np.float32))
+
     return np.concatenate(vectors)
 
 
