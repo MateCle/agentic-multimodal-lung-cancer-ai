@@ -144,7 +144,7 @@ def run_baseline(cohort: str, split_file: str) -> dict:
     test_patients = load_split_patients(test_ids, raw_data)
 
     X_train, e_train, t_train, _ = build_dataset(train_patients)
-    X_val, e_val, t_val, _ = build_dataset(val_patients)
+    X_val, e_val, t_val, comp_val = build_dataset(val_patients)
     X_test, e_test, t_test, comp_test = build_dataset(test_patients)
 
     print(f"  Train: {len(X_train)} patients | Val: {len(X_val)} | Test: {len(X_test)}")
@@ -213,6 +213,10 @@ def run_baseline(cohort: str, split_file: str) -> dict:
     auc_test = evaluate_auc(X_test_pca, e_test, "test")
 
     # --- Breakdown by Completeness ---
+    print("\n  [Breakdown by Modality Completeness - Val Set]")
+    completeness_val = c_index_by_completeness(
+        comp_val, X_val_pca, e_val, t_val, cph, cols
+    )
     print("\n  [Breakdown by Modality Completeness - Test Set]")
     completeness_metrics = c_index_by_completeness(
         comp_test, X_test_pca, e_test, t_test, cph, cols
@@ -226,6 +230,8 @@ def run_baseline(cohort: str, split_file: str) -> dict:
         "auc_train": auc_train,
         "auc_val": auc_val,
         "auc_test": auc_test,
+        "ci_val_complete": completeness_val.get("complete"),
+        "ci_val_incomplete": completeness_val.get("incomplete"),
         "ci_test_complete": completeness_metrics.get("complete"),
         "ci_test_incomplete": completeness_metrics.get("incomplete"),
         "n_train": len(X_train),
