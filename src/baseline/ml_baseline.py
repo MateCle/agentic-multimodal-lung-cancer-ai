@@ -1,7 +1,7 @@
 """
 Naive ML baseline for multimodal lung cancer survival prediction.
 Strategy: zero-imputation for missing modalities + early fusion + CoxPH.
-Outputs C-index on the test split as the benchmark for the agentic system.
+Outputs C-index and AUCon the test split as the benchmark for the agentic system.
 """
 
 import sys
@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from lifelines import CoxPHFitter
 from lifelines.utils import concordance_index
+from sklearn.metrics import roc_auc_score
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
@@ -81,7 +82,7 @@ def build_dataset(patients: list[dict]) -> tuple[np.ndarray, np.ndarray, np.ndar
 def run_baseline(cohort: str, split_file: str) -> dict:
     """
     Train and evaluate the naive baseline for a single cohort.
-    Returns a dict with train/val/test C-index scores.
+    Returns a dict with train/val/test C-index and AUC scores.
     """
     print(f"\n{'=' * 60}")
     print(f"  Cohort: TCGA-{cohort.upper()}")
@@ -148,11 +149,30 @@ def run_baseline(cohort: str, split_file: str) -> dict:
     ci_val = c_index_on(X_val_pca, e_val, t_val, "val")
     ci_test = c_index_on(X_test_pca, e_test, t_test, "test")
 
+    # --- AUC CALCULATION ---
+    def auc_on(x_pca_local, events_local, label):
+        """AUC treating DSS as binary classification."""
+        df_local = pd.DataFrame(x_pca_local, columns=cols)
+        risk_scores = cph.predict_partial_hazard(df_local).values
+        if len(np.unique(events_local)) < 2:
+            print(f"  AUC     ({label:5s}): N/A (single class)")
+            return None
+        auc = roc_auc_score(events_local, risk_scores)
+        print(f"  AUC     ({label:5s}): {auc:.4f}")
+        return auc
+
+    auc_train = auc_on(X_train_pca, e_train, "train")
+    auc_val = auc_on(X_val_pca, e_val, "val")
+    auc_test = auc_on(X_test_pca, e_test, "test")
+
     return {
         "cohort": cohort.upper(),
         "ci_train": ci_train,
         "ci_val": ci_val,
         "ci_test": ci_test,
+        "auc_train": auc_train,
+        "auc_val": auc_val,
+        "auc_test": auc_test,
         "n_train": len(X_train),
         "n_val": len(X_val),
         "n_test": len(X_test),
@@ -180,10 +200,6 @@ if __name__ == "__main__":
     print("  SUMMARY — Naive baseline (zero-imputation + CoxPH + PCA-50)")
     print(f"{'=' * 60}")
     for r in results:
-        print(
-            f"  {r['cohort']}: "
-            f"train={r['ci_train']:.4f} | "
-            f"val={r['ci_val']:.4f} | "
-            f"test={r['ci_test']:.4f}"
-        )
+        auc_str = f"{r['auc_test']:.4f}" if r["auc_test"] is not None else "N/A"
+        print(f"  {r['cohort']}: C-index test={r['ci_test']:.4f} | AUC test={auc_str}")
     print(f"{'=' * 60}")
