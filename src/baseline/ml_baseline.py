@@ -1,7 +1,7 @@
 """
 Naive ML baseline for multimodal lung cancer survival prediction.
 Strategy: zero-imputation for missing modalities + early fusion + CoxPH.
-Outputs C-index and AUC on the test split as the benchmark for the agentic system.
+Outputs C-index, AUC, and generates diagnostic plots (Missingness, PCA, Kaplan-Meier, ROC curve).
 Includes breakdown by data completeness and JSON result logging.
 """
 
@@ -9,11 +9,12 @@ import json
 import sys
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from lifelines import CoxPHFitter
+from lifelines import CoxPHFitter, KaplanMeierFitter
 from lifelines.utils import concordance_index
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, roc_curve
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
@@ -124,13 +125,13 @@ def save_results(results: list[dict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\n[INFO] Results saved to {path}")
+    print(f"\n[INFO] JSON Results saved to {path}")
 
 
 def run_baseline(cohort: str, split_file: str) -> dict:
     """
     Train and evaluate the naive baseline for a single cohort.
-    Returns a dictionary containing model performance metrics.
+    Generates diagnostic plots and returns model performance metrics.
     """
     print(f"\n{'=' * 60}")
     print(f"  Cohort: TCGA-{cohort.upper()}")
@@ -143,9 +144,30 @@ def run_baseline(cohort: str, split_file: str) -> dict:
     val_patients = load_split_patients(val_ids, raw_data)
     test_patients = load_split_patients(test_ids, raw_data)
 
+    # --- PLOT 1: Missingness Bar Chart ---
+    all_patients = train_patients + val_patients + test_patients
+    missing_rates = {}
+    total_p = len(all_patients)
+
+    for m in MODALITY_KEYS:
+        missing_count = sum(1 for p in all_patients if p.get(m) is None)
+        missing_rates[m] = (missing_count / total_p) * 100
+
+    plt.figure(figsize=(8, 5))
+    plt.bar(
+        missing_rates.keys(), missing_rates.values(), color="coral", edgecolor="black"
+    )
+    plt.ylabel("Missing Data (%)")
+    plt.title(f"Missing Modalities - TCGA-{cohort.upper()}")
+    plt.ylim([0, 100])
+    plt.tight_layout()
+    plt.savefig(Path(f"results/plot_missingness_{cohort}.png"))
+    plt.close()
+
+    # --- Build Datasets ---
     X_train, e_train, t_train, _ = build_dataset(train_patients)
-    X_val, e_val, t_val, comp_val = build_dataset(val_patients)
-    X_test, e_test, t_test, comp_test = build_dataset(test_patients)
+    X_val, e_val, t_val, is_complete_val = build_dataset(val_patients)
+    X_test, e_test, t_test, is_complete_test = build_dataset(test_patients)
 
     print(f"  Train: {len(X_train)} patients | Val: {len(X_val)} | Test: {len(X_test)}")
     print(f"  Feature dim: {X_train.shape[1]}")
@@ -174,6 +196,33 @@ def run_baseline(cohort: str, split_file: str) -> dict:
         f"  PCA components: {n_components} "
         f"(explained variance: {pca.explained_variance_ratio_.sum():.2%})"
     )
+
+    # --- PLOT 2: Cumulative Variance Ratio (PCA) ---
+    var_exp = pca.explained_variance_ratio_
+    cum_var_exp = np.cumsum(var_exp)
+
+    plt.figure(figsize=(8, 6))
+    plt.bar(
+        range(1, n_components + 1),
+        var_exp,
+        alpha=0.5,
+        align="center",
+        label="Individual explained variance",
+    )
+    plt.step(
+        range(1, n_components + 1),
+        cum_var_exp,
+        where="mid",
+        label="Cumulative explained variance",
+    )
+    plt.ylabel("Explained variance ratio")
+    plt.xlabel("Principal component index")
+    plt.title(f"PCA Variance Explained - TCGA-{cohort.upper()}")
+    plt.ylim([0.0, 1.05])
+    plt.legend(loc="best")
+    plt.tight_layout()
+    plt.savefig(Path(f"results/plot_pca_variance_{cohort}.png"))
+    plt.close()
 
     # --- Cox Proportional Hazards Model ---
     cols = [f"pc{i}" for i in range(n_components)]
@@ -215,12 +264,71 @@ def run_baseline(cohort: str, split_file: str) -> dict:
     # --- Breakdown by Completeness ---
     print("\n  [Breakdown by Modality Completeness - Val Set]")
     completeness_val = c_index_by_completeness(
-        comp_val, X_val_pca, e_val, t_val, cph, cols
+        is_complete_val, X_val_pca, e_val, t_val, cph, cols
     )
+
     print("\n  [Breakdown by Modality Completeness - Test Set]")
-    completeness_metrics = c_index_by_completeness(
-        comp_test, X_test_pca, e_test, t_test, cph, cols
+    completeness_test = c_index_by_completeness(
+        is_complete_test, X_test_pca, e_test, t_test, cph, cols
     )
+
+    # --- PLOT 3: Kaplan-Meier Survival Curves (Test Set) ---
+    kmf = KaplanMeierFitter()
+    plt.figure(figsize=(8, 6))
+
+    idx_complete = np.nonzero(is_complete_test)[0]
+    idx_incomplete = np.nonzero(~is_complete_test)[0]
+
+    if len(idx_complete) > 0:
+        kmf.fit(
+            t_test[idx_complete],
+            event_observed=e_test[idx_complete],
+            label="Complete Data",
+        )
+        kmf.plot_survival_function(ci_show=True)
+
+    if len(idx_incomplete) > 0:
+        kmf.fit(
+            t_test[idx_incomplete],
+            event_observed=e_test[idx_incomplete],
+            label="Incomplete Data",
+        )
+        kmf.plot_survival_function(ci_show=True)
+
+    plt.title(f"Kaplan-Meier Survival Estimate (Test Set) - TCGA-{cohort.upper()}")
+    plt.xlabel("Timeline (Days)")
+    plt.ylabel("Survival Probability")
+    plt.tight_layout()
+    plt.savefig(Path(f"results/plot_kaplan_meier_{cohort}.png"))
+    plt.close()
+
+    # --- PLOT 4: ROC Curve (Test Set) ---
+    if len(np.unique(e_test)) >= 2 and auc_test is not None:
+        df_test_roc = pd.DataFrame(X_test_pca, columns=cols)
+        risk_scores_test = cph.predict_partial_hazard(df_test_roc).values
+
+        fpr, tpr, _ = roc_curve(e_test, risk_scores_test)
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(
+            fpr,
+            tpr,
+            color="darkorange",
+            lw=2,
+            label=f"ROC curve (AUC = {auc_test:.4f})",
+        )
+        plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title(f"ROC Curve (Test Set) - TCGA-{cohort.upper()}")
+        plt.legend(loc="lower right")
+        plt.tight_layout()
+        plt.savefig(Path(f"results/plot_roc_curve_{cohort}.png"))
+        plt.close()
+
+    print("\n  [INFO] Plots saved to results/ directory.")
 
     return {
         "cohort": cohort.upper(),
@@ -232,8 +340,8 @@ def run_baseline(cohort: str, split_file: str) -> dict:
         "auc_test": auc_test,
         "ci_val_complete": completeness_val.get("complete"),
         "ci_val_incomplete": completeness_val.get("incomplete"),
-        "ci_test_complete": completeness_metrics.get("complete"),
-        "ci_test_incomplete": completeness_metrics.get("incomplete"),
+        "ci_test_complete": completeness_test.get("complete"),
+        "ci_test_incomplete": completeness_test.get("incomplete"),
         "n_train": len(X_train),
         "n_val": len(X_val),
         "n_test": len(X_test),
