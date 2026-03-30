@@ -29,3 +29,6 @@ env/
 *.log
 .ruff_cache/
 .pytest_cache/
+
+# Outputs & Results
+results/
