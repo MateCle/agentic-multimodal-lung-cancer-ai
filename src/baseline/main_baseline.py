@@ -90,12 +90,14 @@ def save_results(results: list[dict], path: Path) -> None:
 def _plot_data_diagnostics(
     cohort: str,
     all_patients: list[dict],
+    y_test: np.ndarray,
+    is_complete_test: np.ndarray,
     pca: PCA,
     n_components: int,
 ) -> None:
     """
-    Generate data-dependent plots (missingness + PCA variance).
-    These are model-independent and identical across all runs.
+    Generate data-dependent plots. These depend only on the dataset and
+    preprocessing (zero-imputation + PCA), not on the survival model.
     """
     # --- Missingness Bar Chart ---
     total_p = len(all_patients)
@@ -113,6 +115,39 @@ def _plot_data_diagnostics(
     plt.ylim([0, 100])
     plt.tight_layout()
     plt.savefig(RESULTS_DIR / f"plot_missingness_{cohort}.png")
+    plt.close()
+
+    # --- Kaplan-Meier: Complete vs Incomplete (MMNAR diagnostic) ---
+    kmf = KaplanMeierFitter()
+    plt.figure(figsize=(8, 6))
+
+    idx_complete = np.nonzero(is_complete_test)[0]
+    idx_incomplete = np.nonzero(~is_complete_test)[0]
+
+    t_test = y_test["Time"]
+    e_test = y_test["Status"]
+
+    if len(idx_complete) > 0:
+        kmf.fit(
+            t_test[idx_complete],
+            event_observed=e_test[idx_complete],
+            label="Complete Data",
+        )
+        kmf.plot_survival_function(ci_show=True)
+
+    if len(idx_incomplete) > 0:
+        kmf.fit(
+            t_test[idx_incomplete],
+            event_observed=e_test[idx_incomplete],
+            label="Incomplete Data",
+        )
+        kmf.plot_survival_function(ci_show=True)
+
+    plt.title(f"Kaplan-Meier Survival Estimate (Test Set) - TCGA-{cohort.upper()}")
+    plt.xlabel("Timeline (Days)")
+    plt.ylabel("Survival Probability")
+    plt.tight_layout()
+    plt.savefig(RESULTS_DIR / f"plot_kaplan_meier_{cohort}.png")
     plt.close()
 
     # --- Cumulative Variance Ratio (PCA) ---
@@ -143,49 +178,6 @@ def _plot_data_diagnostics(
     plt.close()
 
 
-def _plot_kaplan_meier(
-    cohort: str,
-    model_name: str,
-    y_test: np.ndarray,
-    is_complete_test: np.ndarray,
-) -> None:
-    """Generate Kaplan-Meier survival curves for the test set (model-tagged)."""
-    kmf = KaplanMeierFitter()
-    plt.figure(figsize=(8, 6))
-
-    idx_complete = np.nonzero(is_complete_test)[0]
-    idx_incomplete = np.nonzero(~is_complete_test)[0]
-
-    t_test = y_test["Time"]
-    e_test = y_test["Status"]
-
-    if len(idx_complete) > 0:
-        kmf.fit(
-            t_test[idx_complete],
-            event_observed=e_test[idx_complete],
-            label="Complete Data",
-        )
-        kmf.plot_survival_function(ci_show=True)
-
-    if len(idx_incomplete) > 0:
-        kmf.fit(
-            t_test[idx_incomplete],
-            event_observed=e_test[idx_incomplete],
-            label="Incomplete Data",
-        )
-        kmf.plot_survival_function(ci_show=True)
-
-    plt.title(
-        f"Kaplan-Meier Survival Estimate (Test Set) - "
-        f"TCGA-{cohort.upper()} [{model_name.upper()}]"
-    )
-    plt.xlabel("Timeline (Days)")
-    plt.ylabel("Survival Probability")
-    plt.tight_layout()
-    plt.savefig(RESULTS_DIR / f"plot_kaplan_meier_{cohort}_{model_name}.png")
-    plt.close()
-
-
 def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
     print(f"\n{'=' * 60}")
     print(f"  Cohort: TCGA-{cohort.upper()}  |  Model: {model_name.upper()}")
@@ -205,15 +197,11 @@ def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
     X_val, y_val, is_complete_val = build_structured_dataset(val_patients)
     X_test, y_test, is_complete_test = build_structured_dataset(test_patients)
 
-    event_rate_train = y_train["Status"].mean()
-    event_rate_val = y_val["Status"].mean()
-    event_rate_test = y_test["Status"].mean()
-
     print(f"  Train: {len(X_train)} patients | Val: {len(X_val)} | Test: {len(X_test)}")
     print(f"  Feature dim: {X_train.shape[1]}")
     print(
-        f"  Event rate  — Train: {event_rate_train:.2%} | "
-        f"Val: {event_rate_val:.2%} | Test: {event_rate_test:.2%}"
+        f"  Event rate  — Train: {y_train['Status'].mean():.2%} | "
+        f"Val: {y_val['Status'].mean():.2%} | Test: {y_test['Status'].mean():.2%}"
     )
 
     # --- PCA Dimensionality Reduction ---
@@ -234,9 +222,11 @@ def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
         f"(explained variance: {pca.explained_variance_ratio_.sum():.2%})"
     )
 
-    # --- Data-dependent plots (model-independent) ---
+    # --- Data-dependent plots ---
     RESULTS_DIR.mkdir(exist_ok=True)
-    _plot_data_diagnostics(cohort, all_patients, pca, n_components)
+    _plot_data_diagnostics(
+        cohort, all_patients, y_test, is_complete_test, pca, n_components
+    )
 
     # --- Model Selection & Training ---
     model = _build_model(model_name)
@@ -258,9 +248,6 @@ def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
     completeness_test = c_index_by_completeness(
         is_complete_test, X_test_pca, y_test, model
     )
-
-    # --- Model-dependent plot ---
-    _plot_kaplan_meier(cohort, model_name, y_test, is_complete_test)
 
     print("\n  [INFO] Plots saved to results/ directory.")
 
