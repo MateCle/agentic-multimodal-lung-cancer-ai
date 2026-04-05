@@ -31,4 +31,4 @@ env/
 .pytest_cache/
 
 # Outputs & Results
-results/
+results/*.png

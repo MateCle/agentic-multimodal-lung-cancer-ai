@@ -1,13 +1,13 @@
 """
 Unified baseline runner for multimodal lung cancer survival prediction.
-Strategy: zero-imputation + PCA-50 + selectable survival model.
+Strategy: selectable imputation + PCA-50 + selectable survival model.
 
 Usage:
-    python -m src.baseline.main_baseline                  # defaults to coxph
-    python -m src.baseline.main_baseline --model coxph
-    python -m src.baseline.main_baseline --model coxnet
-    python -m src.baseline.main_baseline --model rsf
-    python -m src.baseline.main_baseline --model xgboost
+    python -m src.baseline.main_baseline    # defaults to CoxPH + zero imputation
+    python -m src.baseline.main_baseline --model coxph --imputation zero
+    python -m src.baseline.main_baseline --model coxph --imputation knn
+    python -m src.baseline.main_baseline --model coxph --imputation knn_tuned
+    python -m src.baseline.main_baseline --model coxph --imputation mice
 """
 
 import argparse
@@ -24,7 +24,11 @@ from sklearn.preprocessing import StandardScaler
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.baseline.models import CoxPHBaseline
-from src.baseline.preprocessing import build_structured_dataset
+from src.baseline.preprocessing import (
+    IMPUTATION_STRATEGIES,
+    apply_imputation,
+    build_feature_matrix,
+)
 from src.data_loader import (
     MODALITY_KEYS,
     load_raw_data,
@@ -59,6 +63,11 @@ def _build_model(model_name: str):
         raise ValueError(f"Unknown model: {model_name}")
 
 
+def _run_tag(model_name: str, imputation: str) -> str:
+    """Build a filename-safe tag from model + imputation combination."""
+    return f"{model_name}_{imputation}"
+
+
 def c_index_by_completeness(
     is_complete: np.ndarray, X_pca: np.ndarray, y: np.ndarray, model
 ) -> dict:
@@ -87,19 +96,13 @@ def save_results(results: list[dict], path: Path) -> None:
     print(f"\n[INFO] JSON Results saved to {path}")
 
 
-def _plot_data_diagnostics(
-    cohort: str,
-    all_patients: list[dict],
-    y_test: np.ndarray,
-    is_complete_test: np.ndarray,
-    pca: PCA,
-    n_components: int,
-) -> None:
-    """
-    Generate data-dependent plots. These depend only on the dataset and
-    preprocessing (zero-imputation + PCA), not on the survival model.
-    """
-    # --- Missingness Bar Chart ---
+# ---------------------------------------------------------------------------
+# Plot functions — categorized by dependency
+# ---------------------------------------------------------------------------
+
+
+def _plot_missingness(cohort: str, all_patients: list[dict]) -> None:
+    """Data-dependent: identical across all models and imputations."""
     total_p = len(all_patients)
     missing_rates = {}
     for m in MODALITY_KEYS:
@@ -117,7 +120,17 @@ def _plot_data_diagnostics(
     plt.savefig(RESULTS_DIR / f"plot_missingness_{cohort}.png")
     plt.close()
 
-    # --- Kaplan-Meier: Complete vs Incomplete (MMNAR diagnostic) ---
+
+def _plot_kaplan_meier_completeness(
+    cohort: str,
+    y_test: np.ndarray,
+    is_complete_test: np.ndarray,
+) -> None:
+    """
+    Data-dependent: plots actual survival curves by modality completeness.
+    Supports the MMNAR argument — shows that incomplete patients have
+    different survival distributions than complete patients.
+    """
     kmf = KaplanMeierFitter()
     plt.figure(figsize=(8, 6))
 
@@ -150,7 +163,17 @@ def _plot_data_diagnostics(
     plt.savefig(RESULTS_DIR / f"plot_kaplan_meier_{cohort}.png")
     plt.close()
 
-    # --- Cumulative Variance Ratio (PCA) ---
+
+def _plot_pca_variance(
+    cohort: str,
+    tag: str,
+    pca: PCA,
+    n_components: int,
+) -> None:
+    """
+    Imputation-dependent: PCA is fitted after imputation, so the variance
+    profile differs by strategy (19K dims for zero/knn vs ~200 for MICE).
+    """
     var_exp = pca.explained_variance_ratio_
     cum_var_exp = np.cumsum(var_exp)
 
@@ -170,17 +193,74 @@ def _plot_data_diagnostics(
     )
     plt.ylabel("Explained variance ratio")
     plt.xlabel("Principal component index")
-    plt.title(f"PCA Variance Explained - TCGA-{cohort.upper()}")
+    plt.title(f"PCA Variance Explained - TCGA-{cohort.upper()} [{tag.upper()}]")
     plt.ylim([0.0, 1.05])
     plt.legend(loc="best")
     plt.tight_layout()
-    plt.savefig(RESULTS_DIR / f"plot_pca_variance_{cohort}.png")
+    plt.savefig(RESULTS_DIR / f"plot_pca_variance_{cohort}_{tag}.png")
     plt.close()
 
 
-def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
+def _plot_kaplan_meier_risk(
+    cohort: str,
+    tag: str,
+    y_test: np.ndarray,
+    risk_scores: np.ndarray,
+) -> None:
+    """
+    Model+imputation dependent: stratifies patients into High/Low risk
+    groups based on the model's predicted risk scores (median split).
+    Well-separated curves indicate the model discriminates effectively.
+    """
+    median_risk = np.median(risk_scores)
+    high_risk = risk_scores >= median_risk
+    low_risk = ~high_risk
+
+    t_test = y_test["Time"]
+    e_test = y_test["Status"]
+
+    kmf = KaplanMeierFitter()
+    plt.figure(figsize=(8, 6))
+
+    if high_risk.sum() > 0:
+        kmf.fit(
+            t_test[high_risk],
+            event_observed=e_test[high_risk],
+            label="High Risk (predicted)",
+        )
+        kmf.plot_survival_function(ci_show=True)
+
+    if low_risk.sum() > 0:
+        kmf.fit(
+            t_test[low_risk],
+            event_observed=e_test[low_risk],
+            label="Low Risk (predicted)",
+        )
+        kmf.plot_survival_function(ci_show=True)
+
+    plt.title(f"Risk-Stratified KM (Test Set) - TCGA-{cohort.upper()} [{tag.upper()}]")
+    plt.xlabel("Timeline (Days)")
+    plt.ylabel("Survival Probability")
+    plt.tight_layout()
+    plt.savefig(RESULTS_DIR / f"plot_kaplan_meier_risk_{cohort}_{tag}.png")
+    plt.close()
+
+
+# ---------------------------------------------------------------------------
+# Main pipeline
+# ---------------------------------------------------------------------------
+
+
+def run_baseline(
+    cohort: str, split_file: str, model_name: str, imputation: str
+) -> dict:
+    tag = _run_tag(model_name, imputation)
+
     print(f"\n{'=' * 60}")
-    print(f"  Cohort: TCGA-{cohort.upper()}  |  Model: {model_name.upper()}")
+    print(
+        f"  Cohort: TCGA-{cohort.upper()}  |  "
+        f"Model: {model_name.upper()}  |  Imputation: {imputation.upper()}"
+    )
     print(f"{'=' * 60}")
 
     raw_data, _ = load_raw_data(DATA_DIR, cohort)
@@ -192,10 +272,10 @@ def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
 
     all_patients = train_patients + val_patients + test_patients
 
-    # --- Build Datasets (Zero Imputation) ---
-    X_train, y_train, _ = build_structured_dataset(train_patients)
-    X_val, y_val, is_complete_val = build_structured_dataset(val_patients)
-    X_test, y_test, is_complete_test = build_structured_dataset(test_patients)
+    # --- Build NaN feature matrices ---
+    X_train, y_train, _ = build_feature_matrix(train_patients)
+    X_val, y_val, is_complete_val = build_feature_matrix(val_patients)
+    X_test, y_test, is_complete_test = build_feature_matrix(test_patients)
 
     print(f"  Train: {len(X_train)} patients | Val: {len(X_val)} | Test: {len(X_test)}")
     print(f"  Feature dim: {X_train.shape[1]}")
@@ -204,11 +284,21 @@ def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
         f"Val: {y_val['Status'].mean():.2%} | Test: {y_test['Status'].mean():.2%}"
     )
 
+    # --- Imputation ---
+    print(f"\n  [Imputation: {imputation.upper()}]")
+    (X_train_imp, X_val_imp, X_test_imp), imp_extra = apply_imputation(
+        strategy=imputation,
+        X_train=X_train,
+        X_val=X_val,
+        X_test=X_test,
+        y_train=y_train,
+    )
+
     # --- PCA Dimensionality Reduction ---
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_val_scaled = scaler.transform(X_val)
-    X_test_scaled = scaler.transform(X_test)
+    X_train_scaled = scaler.fit_transform(X_train_imp)
+    X_val_scaled = scaler.transform(X_val_imp)
+    X_test_scaled = scaler.transform(X_test_imp)
 
     n_components = min(50, X_train_scaled.shape[0] - 1, X_train_scaled.shape[1])
     pca = PCA(n_components=n_components, random_state=42)
@@ -222,16 +312,20 @@ def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
         f"(explained variance: {pca.explained_variance_ratio_.sum():.2%})"
     )
 
-    # --- Data-dependent plots ---
-    RESULTS_DIR.mkdir(exist_ok=True)
-    _plot_data_diagnostics(
-        cohort, all_patients, y_test, is_complete_test, pca, n_components
-    )
-
     # --- Model Selection & Training ---
+    RESULTS_DIR.mkdir(exist_ok=True)
     model = _build_model(model_name)
     model.fit(X_train_pca, y_train)
 
+    # --- Plots ---
+    _plot_missingness(cohort, all_patients)  # data-dep
+    _plot_kaplan_meier_completeness(cohort, y_test, is_complete_test)  # data-dep
+    _plot_pca_variance(cohort, tag, pca, n_components)  # imp-dep
+
+    risk_scores_test = model.predict_risk(X_test_pca)
+    _plot_kaplan_meier_risk(cohort, tag, y_test, risk_scores_test)  # model+imp
+
+    # --- Evaluation ---
     print("\n  [Overall Performance]")
     ci_train = model.score(X_train_pca, y_train)
     ci_val = model.score(X_val_pca, y_val)
@@ -251,9 +345,10 @@ def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
 
     print("\n  [INFO] Plots saved to results/ directory.")
 
-    return {
+    result = {
         "cohort": cohort.upper(),
         "model": model_name,
+        "imputation": imputation,
         "ci_train": ci_train,
         "ci_val": ci_val,
         "ci_test": ci_test,
@@ -264,12 +359,19 @@ def run_baseline(cohort: str, split_file: str, model_name: str) -> dict:
         "n_train": len(X_train),
         "n_val": len(X_val),
         "n_test": len(X_test),
+        "pca_n_components": n_components,
+        "pca_explained_variance": round(float(pca.explained_variance_ratio_.sum()), 4),
     }
+
+    if imp_extra:
+        result["imputation_params"] = imp_extra
+
+    return result
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run baseline survival models (zero-imputation + PCA-50)."
+        description="Run baseline survival models with selectable imputation."
     )
     parser.add_argument(
         "--model",
@@ -278,8 +380,16 @@ if __name__ == "__main__":
         choices=MODEL_CHOICES,
         help="Survival model to train (default: coxph).",
     )
+    parser.add_argument(
+        "--imputation",
+        type=str,
+        default="zero",
+        choices=IMPUTATION_STRATEGIES,
+        help="Imputation strategy for missing modalities (default: zero).",
+    )
     args = parser.parse_args()
 
+    tag = _run_tag(args.model, args.imputation)
     results = []
 
     results.append(
@@ -287,6 +397,7 @@ if __name__ == "__main__":
             cohort="luad",
             split_file="tcga_luad_DSS_k3_r1_test0.2_val0.2_seed42.json",
             model_name=args.model,
+            imputation=args.imputation,
         )
     )
     results.append(
@@ -294,11 +405,12 @@ if __name__ == "__main__":
             cohort="lusc",
             split_file="tcga_lusc_DSS_k5_r1_test0.2_val0.2_seed42.json",
             model_name=args.model,
+            imputation=args.imputation,
         )
     )
 
     print(f"\n{'=' * 60}")
-    print(f"  SUMMARY — {args.model.upper()} baseline (zero-imputation + PCA-50)")
+    print(f"  SUMMARY — {args.model.upper()} + {args.imputation.upper()} + PCA-50")
     print(f"{'=' * 60}")
 
     for r in results:
@@ -317,5 +429,8 @@ if __name__ == "__main__":
             f"(Comp: {ci_comp} / Incomp: {ci_incomp})"
         )
 
+        if r.get("imputation_params"):
+            print(f"    Imputation params: {r['imputation_params']}")
+
     print(f"{'=' * 60}")
-    save_results(results, RESULTS_DIR / f"baseline_results_{args.model}.json")
+    save_results(results, RESULTS_DIR / f"baseline_results_{tag}.json")
