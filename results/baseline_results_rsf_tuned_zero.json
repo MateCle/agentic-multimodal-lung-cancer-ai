@@ -1,0 +1,50 @@
+[
+  {
+    "cohort": "LUAD",
+    "model": "rsf_tuned",
+    "imputation": "zero",
+    "ci_train": 0.9574113728289317,
+    "ci_val": 0.6746776084407972,
+    "ci_test": 0.6651305683563749,
+    "ci_val_complete": 0.7060322854715378,
+    "ci_val_incomplete": 0.5208333333333334,
+    "ci_test_complete": 0.667144906743185,
+    "ci_test_incomplete": 0.6931818181818182,
+    "n_train": 251,
+    "n_val": 126,
+    "n_test": 94,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.9329,
+    "model_params": {
+      "n_estimators": 100,
+      "max_depth": null,
+      "min_samples_split": 10,
+      "min_samples_leaf": 3,
+      "max_features": "log2"
+    }
+  },
+  {
+    "cohort": "LUSC",
+    "model": "rsf_tuned",
+    "imputation": "zero",
+    "ci_train": 0.9504440725962158,
+    "ci_val": 0.4926590538336052,
+    "ci_test": 0.49941656942823803,
+    "ci_val_complete": 0.599009900990099,
+    "ci_val_incomplete": 0.336283185840708,
+    "ci_test_complete": 0.4281842818428184,
+    "ci_test_incomplete": 0.6224489795918368,
+    "n_train": 283,
+    "n_val": 72,
+    "n_test": 90,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.9092,
+    "model_params": {
+      "n_estimators": 100,
+      "max_depth": 10,
+      "min_samples_split": 6,
+      "min_samples_leaf": 10,
+      "max_features": "sqrt"
+    }
+  }
+]
