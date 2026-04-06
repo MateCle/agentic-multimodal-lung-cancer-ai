@@ -1,5 +1,10 @@
-from sksurv.linear_model import CoxPHSurvivalAnalysis
+import warnings
+from itertools import product
 
+import numpy as np
+from sklearn.model_selection import KFold
+from sksurv.ensemble import RandomSurvivalForest
+from sksurv.linear_model import CoxPHSurvivalAnalysis, CoxnetSurvivalAnalysis
 
 class CoxPHBaseline:
     """
@@ -15,10 +20,49 @@ class CoxPHBaseline:
         return self
 
     def predict_risk(self, X):
-        return self.model.predict(X)
+        preds = self.model.predict(X)
+        if preds.ndim == 2:
+            return preds[:, self._best_alpha_idx]
+        return preds  # if it is 1D works directly
 
     def score(self, X, y):
         """Returns the Concordance Index (C-index)"""
+        return self.model.score(X, y)
+
+
+class CoxNetModel:
+    """
+    Penalized Cox model (Elastic Net) via scikit-survival.
+    l1_ratio=0.5 → mix igual de L1 y L2.
+    The alpha of the middle of the path is selected as the default predictor.    
+    """
+    def __init__(self, l1_ratio=0.5, alpha_min_ratio=0.1):
+        self.l1_ratio = l1_ratio
+        self.alpha_min_ratio = alpha_min_ratio
+        self.model = None
+        self._best_alpha_idx = None
+
+    def fit(self, X, y):
+        self.model = CoxnetSurvivalAnalysis(
+            l1_ratio=self.l1_ratio,
+            alpha_min_ratio=self.alpha_min_ratio,
+            fit_baseline_model=True,
+            normalize=False,  # It already comes normalized from the pipeline (StandardScaler + PCA)
+        )
+        self.model.fit(X, y)
+        # We take the alpha in the middle of the path as the baseline reference point
+        n_alphas = len(self.model.alphas_)
+        self._best_alpha_idx = n_alphas // 2
+        return self
+
+    def predict_risk(self, X):
+        preds = self.model.predict(X)
+        if preds.ndim == 2:
+            return preds[:, self._best_alpha_idx]
+        return preds  # if it is 1D works directly
+
+    def score(self, X, y):
+    # score() from sksurv already uses the best alpha internally, so it's straightforward
         return self.model.score(X, y)
 
 
