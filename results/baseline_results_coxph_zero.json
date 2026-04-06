@@ -3,7 +3,7 @@
     "cohort": "LUAD",
     "model": "coxph",
     "imputation": "zero",
-    "ci_train": 0.8194147037830122,
+    "ci_train": 0.8192957411372829,
     "ci_val": 0.5926143024618992,
     "ci_test": 0.6351766513056836,
     "ci_val_complete": 0.5853865760407817,
