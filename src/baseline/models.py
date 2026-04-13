@@ -20,10 +20,7 @@ class CoxPHBaseline:
         return self
 
     def predict_risk(self, X):
-        preds = self.model.predict(X)
-        if preds.ndim == 2:
-            return preds[:, self._best_alpha_idx]
-        return preds  # if it is 1D works directly
+        return self.model.predict(X)
 
     def score(self, X, y):
         """Returns the Concordance Index (C-index)"""
@@ -62,13 +59,9 @@ class CoxNetModel:
         return preds  # if it is 1D works directly
 
     def score(self, X, y):
-    # score() from sksurv already uses the best alpha internally, so it's straightforward
-        return self.model.score(X, y)
-
-
-class CoxNetModel:
-    pass
-
+        risk = self.predict_risk(X)  # already use _best_alpha_idx
+        from sksurv.metrics import concordance_index_censored
+        return concordance_index_censored(y["Status"], y["Time"], risk)[0]
 
 class RandomSurvivalForestModel:
     pass
