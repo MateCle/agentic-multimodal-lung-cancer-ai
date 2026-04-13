@@ -15,8 +15,6 @@ import json
 import sys
 from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")  # non-interactive backend — avoids tkinter threading crashes with joblib
 import matplotlib.pyplot as plt
 import numpy as np
 from lifelines import KaplanMeierFitter
@@ -25,7 +23,7 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.baseline.models import CoxPHBaseline, RandomSurvivalForestModel
+from src.baseline.models import CoxPHBaseline
 from src.baseline.preprocessing import (
     IMPUTATION_STRATEGIES,
     apply_imputation,
@@ -42,7 +40,7 @@ DATA_DIR = Path("data/extracted/cache_data")
 SPLITS_DIR = DATA_DIR / "splits"
 RESULTS_DIR = Path("results")
 
-MODEL_CHOICES = ["coxph", "coxnet", "rsf", "rsf_tuned", "xgboost"]
+MODEL_CHOICES = ["coxph", "coxnet", "rsf", "xgboost"]
 
 
 def _build_model(model_name: str):
@@ -52,15 +50,13 @@ def _build_model(model_name: str):
     elif model_name == "coxnet":
         from src.baseline.models import CoxNetModel
         return CoxNetModel()
-        # raise NotImplementedError("CoxNet not yet implemented.")
     elif model_name == "rsf":
-        return RandomSurvivalForestModel(tuned=False)
-    elif model_name == "rsf_tuned":
-        return RandomSurvivalForestModel(tuned=True)
+        # from src.baseline.models import RandomSurvivalForestModel
+        # return RandomSurvivalForestModel()
+        raise NotImplementedError("RSF not yet implemented.")
     elif model_name == "xgboost":
-        # from src.baseline.models import XGBoostSurvivalModel
-        # return XGBoostSurvivalModel()
-        raise NotImplementedError("XGBoost not yet implemented.")
+        from src.baseline.models import XGBoostSurvivalModel
+        return XGBoostSurvivalModel()
     else:
         raise ValueError(f"Unknown model: {model_name}")
 
@@ -368,10 +364,6 @@ def run_baseline(
     if imp_extra:
         result["imputation_params"] = imp_extra
 
-    # Persist RSF best params when tuning was used
-    if hasattr(model, "best_params") and model.best_params:
-        result["model_params"] = model.best_params
-
     return result
 
 
@@ -440,4 +432,3 @@ if __name__ == "__main__":
 
     print(f"{'=' * 60}")
     save_results(results, RESULTS_DIR / f"baseline_results_{tag}.json")
-
