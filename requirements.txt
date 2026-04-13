@@ -142,3 +142,6 @@ widgetsnbextension==4.0.15
 wrapt==2.1.2
 xxhash==3.6.0
 zstandard==0.25.0
+libxgboost=3.2.0=cpu_h6b7513e_1
+py-xgboost=3.2.0=cpu_pyh718b53a_1
+xgboost=3.2.0=cpu_pyhb39878e_1
