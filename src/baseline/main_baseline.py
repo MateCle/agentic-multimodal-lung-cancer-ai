@@ -23,7 +23,7 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.baseline.models import CoxPHBaseline, XGBoostSurvivalModel
+from src.baseline.models import CoxPHBaseline
 from src.baseline.preprocessing import (
     IMPUTATION_STRATEGIES,
     apply_imputation,
@@ -56,6 +56,8 @@ def _build_model(model_name: str):
         # return RandomSurvivalForestModel()
         raise NotImplementedError("RSF not yet implemented.")
     elif model_name == "xgboost":
+        from src.baseline.models import XGBoostSurvivalModel
+
         return XGBoostSurvivalModel()
     else:
         raise ValueError(f"Unknown model: {model_name}")
