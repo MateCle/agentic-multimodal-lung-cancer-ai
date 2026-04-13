@@ -56,9 +56,9 @@ def _build_model(model_name: str):
         # return RandomSurvivalForestModel()
         raise NotImplementedError("RSF not yet implemented.")
     elif model_name == "xgboost":
-        # from src.baseline.models import XGBoostSurvivalModel
-        # return XGBoostSurvivalModel()
-        raise NotImplementedError("XGBoost not yet implemented.")
+        from src.baseline.models import XGBoostSurvivalModel
+
+        return XGBoostSurvivalModel()
     else:
         raise ValueError(f"Unknown model: {model_name}")
 

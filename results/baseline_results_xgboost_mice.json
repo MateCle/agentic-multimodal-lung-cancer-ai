@@ -1,0 +1,36 @@
+[
+  {
+    "cohort": "LUAD",
+    "model": "xgboost",
+    "imputation": "mice",
+    "ci_train": 0.986676183678325,
+    "ci_val": 0.5679953106682297,
+    "ci_test": 0.6935483870967742,
+    "ci_val_complete": 0.550552251486831,
+    "ci_val_incomplete": 0.6458333333333334,
+    "ci_test_complete": 0.6901004304160688,
+    "ci_test_incomplete": 0.6704545454545454,
+    "n_train": 251,
+    "n_val": 126,
+    "n_test": 94,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.5898
+  },
+  {
+    "cohort": "LUSC",
+    "model": "xgboost",
+    "imputation": "mice",
+    "ci_train": 0.9864847470716952,
+    "ci_val": 0.4796084828711256,
+    "ci_test": 0.5250875145857643,
+    "ci_val_complete": 0.504950495049505,
+    "ci_val_incomplete": 0.4336283185840708,
+    "ci_test_complete": 0.5365853658536586,
+    "ci_test_incomplete": 0.5102040816326531,
+    "n_train": 283,
+    "n_val": 72,
+    "n_test": 90,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.7133
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "cohort": "LUAD",
+    "model": "xgboost",
+    "imputation": "knn_tuned",
+    "ci_train": 0.9801332381632167,
+    "ci_val": 0.6277842907385698,
+    "ci_test": 0.5898617511520737,
+    "ci_val_complete": 0.6312659303313509,
+    "ci_val_incomplete": 0.6041666666666666,
+    "ci_test_complete": 0.599713055954089,
+    "ci_test_incomplete": 0.5340909090909091,
+    "n_train": 251,
+    "n_val": 126,
+    "n_test": 94,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.754,
+    "imputation_params": {
+      "n_neighbors": 5,
+      "weights": "distance"
+    }
+  },
+  {
+    "cohort": "LUSC",
+    "model": "xgboost",
+    "imputation": "knn_tuned",
+    "ci_train": 0.9876431973226928,
+    "ci_val": 0.6068515497553018,
+    "ci_test": 0.5262543757292882,
+    "ci_val_complete": 0.6089108910891089,
+    "ci_val_incomplete": 0.504424778761062,
+    "ci_test_complete": 0.5718157181571816,
+    "ci_test_incomplete": 0.4897959183673469,
+    "n_train": 283,
+    "n_val": 72,
+    "n_test": 90,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.862,
+    "imputation_params": {
+      "n_neighbors": 7,
+      "weights": "distance"
+    }
+  }
+]
