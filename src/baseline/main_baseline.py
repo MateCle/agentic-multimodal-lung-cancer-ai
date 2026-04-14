@@ -54,6 +54,7 @@ def _build_model(model_name: str):
         # return CoxNetModel()
         raise NotImplementedError("CoxNet not yet implemented.")
     elif model_name == "rsf":
+        from src.baseline.models import RandomSurvivalForestModel
         return RandomSurvivalForestModel(tuned=False)
     elif model_name == "rsf_tuned":
         return RandomSurvivalForestModel(tuned=True)
