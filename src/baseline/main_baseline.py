@@ -3,11 +3,12 @@ Unified baseline runner for multimodal lung cancer survival prediction.
 Strategy: selectable imputation + PCA-50 + selectable survival model.
 
 Usage:
-    python -m src.baseline.main_baseline    # defaults to CoxPH + zero imputation
+    python -m src.baseline.main_baseline
     python -m src.baseline.main_baseline --model coxph --imputation zero
     python -m src.baseline.main_baseline --model coxph --imputation knn
     python -m src.baseline.main_baseline --model coxph --imputation knn_tuned
     python -m src.baseline.main_baseline --model coxph --imputation mice
+    python -m src.baseline.main_baseline --model xgboost --imputation zero --shap
 """
 
 import argparse
@@ -23,6 +24,7 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from src.baseline.explain import compute_shap_importance, plot_shap
 from src.baseline.models import CoxPHBaseline
 from src.baseline.preprocessing import (
     IMPUTATION_STRATEGIES,
@@ -252,7 +254,11 @@ def _plot_kaplan_meier_risk(
 
 
 def run_baseline(
-    cohort: str, split_file: str, model_name: str, imputation: str
+    cohort: str,
+    split_file: str,
+    model_name: str,
+    imputation: str,
+    run_shap: bool = False,
 ) -> dict:
     tag = _run_tag(model_name, imputation)
 
@@ -263,7 +269,7 @@ def run_baseline(
     )
     print(f"{'=' * 60}")
 
-    raw_data, _ = load_raw_data(DATA_DIR, cohort)
+    raw_data, metadata = load_raw_data(DATA_DIR, cohort)
     train_ids, val_ids, test_ids = load_split(SPLITS_DIR, split_file)
 
     train_patients = load_split_patients(train_ids, raw_data)
@@ -345,6 +351,20 @@ def run_baseline(
 
     print("\n  [INFO] Plots saved to results/ directory.")
 
+    # --- SHAP Explainability (optional) ---
+    shap_top = None
+    if run_shap:
+        shap_result = compute_shap_importance(
+            model,
+            model_name,
+            X_test_pca,
+            pca,
+            n_top=20,
+            metadata=metadata,
+        )
+        plot_shap(shap_result, cohort, tag, RESULTS_DIR, n_top=20)
+        shap_top = shap_result["top_features"]
+
     result = {
         "cohort": cohort.upper(),
         "model": model_name,
@@ -365,6 +385,11 @@ def run_baseline(
 
     if imp_extra:
         result["imputation_params"] = imp_extra
+
+    if shap_top:
+        result["shap_top_features"] = [
+            {"feature": name, "importance": imp} for name, imp in shap_top
+        ]
 
     return result
 
@@ -387,6 +412,11 @@ if __name__ == "__main__":
         choices=IMPUTATION_STRATEGIES,
         help="Imputation strategy for missing modalities (default: zero).",
     )
+    parser.add_argument(
+        "--shap",
+        action="store_true",
+        help="Run SHAP explainability analysis after training.",
+    )
     args = parser.parse_args()
 
     tag = _run_tag(args.model, args.imputation)
@@ -398,6 +428,7 @@ if __name__ == "__main__":
             split_file="tcga_luad_DSS_k3_r1_test0.2_val0.2_seed42.json",
             model_name=args.model,
             imputation=args.imputation,
+            run_shap=args.shap,
         )
     )
     results.append(
@@ -406,6 +437,7 @@ if __name__ == "__main__":
             split_file="tcga_lusc_DSS_k5_r1_test0.2_val0.2_seed42.json",
             model_name=args.model,
             imputation=args.imputation,
+            run_shap=args.shap,
         )
     )
 
