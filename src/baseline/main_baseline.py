@@ -25,7 +25,7 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.baseline.models import CoxPHBaseline, RandomSurvivalForestModel
+from src.baseline.models import CoxPHBaseline
 from src.baseline.preprocessing import (
     IMPUTATION_STRATEGIES,
     apply_imputation,
