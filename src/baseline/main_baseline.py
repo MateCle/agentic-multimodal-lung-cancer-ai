@@ -57,6 +57,7 @@ def _build_model(model_name: str):
         from src.baseline.models import RandomSurvivalForestModel
         return RandomSurvivalForestModel(tuned=False)
     elif model_name == "rsf_tuned":
+        from src.baseline.models import RandomSurvivalForestModel
         return RandomSurvivalForestModel(tuned=True)
     elif model_name == "xgboost":
         # from src.baseline.models import XGBoostSurvivalModel
