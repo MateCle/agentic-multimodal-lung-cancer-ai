@@ -15,15 +15,18 @@ import json
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")  # non-interactive backend — avoids tkinter threading crashes with joblib
 import matplotlib.pyplot as plt
 import numpy as np
+import shap
 from lifelines import KaplanMeierFitter
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.baseline.models import CoxPHBaseline
+from src.baseline.models import CoxPHBaseline, RandomSurvivalForestModel
 from src.baseline.preprocessing import (
     IMPUTATION_STRATEGIES,
     apply_imputation,
@@ -40,7 +43,12 @@ DATA_DIR = Path("data/extracted/cache_data")
 SPLITS_DIR = DATA_DIR / "splits"
 RESULTS_DIR = Path("results")
 
-MODEL_CHOICES = ["coxph", "coxnet", "rsf", "xgboost"]
+MODEL_CHOICES = ["coxph", "coxnet", "rsf", "rsf_tuned", "xgboost"]
+
+
+# ---------------------------------------------------------------------------
+# Model factory
+# ---------------------------------------------------------------------------
 
 
 def _build_model(model_name: str):
@@ -51,9 +59,9 @@ def _build_model(model_name: str):
         from src.baseline.models import CoxNetModel
         return CoxNetModel()
     elif model_name == "rsf":
-        # from src.baseline.models import RandomSurvivalForestModel
-        # return RandomSurvivalForestModel()
-        raise NotImplementedError("RSF not yet implemented.")
+        return RandomSurvivalForestModel(tuned=False)
+    elif model_name == "rsf_tuned":
+        return RandomSurvivalForestModel(tuned=True)
     elif model_name == "xgboost":
         from src.baseline.models import XGBoostSurvivalModel
         return XGBoostSurvivalModel()
@@ -64,6 +72,11 @@ def _build_model(model_name: str):
 def _run_tag(model_name: str, imputation: str) -> str:
     """Build a filename-safe tag from model + imputation combination."""
     return f"{model_name}_{imputation}"
+
+
+# ---------------------------------------------------------------------------
+# Evaluation helpers
+# ---------------------------------------------------------------------------
 
 
 def c_index_by_completeness(
@@ -245,6 +258,93 @@ def _plot_kaplan_meier_risk(
 
 
 # ---------------------------------------------------------------------------
+# SHAP explainability
+# ---------------------------------------------------------------------------
+
+
+def compute_and_plot_shap(
+    model,
+    model_name: str,
+    X_train_pca: np.ndarray,
+    X_test_pca: np.ndarray,
+    cohort: str,
+    tag: str,
+    results_dir: Path,
+    n_components: int,
+) -> dict:
+    """
+    Model-agnostic SHAP using KernelExplainer.
+    Works for ANY survival model via predict_risk().
+    """
+
+    feature_names = [f"PC{i+1}" for i in range(n_components)]
+
+    # --- Define prediction function ---
+    def predict_fn(X):
+        return model.predict_risk(X)
+
+    try:
+        # --- Sampling for computational feasibility ---
+        background_size = min(50, len(X_train_pca))
+        explain_size = min(50, len(X_test_pca))
+
+        background = shap.sample(X_train_pca, background_size, random_state=42)
+        X_explain = X_test_pca[:explain_size]
+
+        print(f"  [SHAP] Using KernelExplainer "
+              f"(background={background.shape}, explain={X_explain.shape})")
+
+        # --- Kernel SHAP ---
+        explainer = shap.KernelExplainer(predict_fn, background)
+        shap_values = explainer.shap_values(X_explain)
+
+        # shap_values comes as numpy array → wrap for plotting API
+        shap_values_obj = shap.Explanation(
+            values=shap_values,
+            data=X_explain,
+            feature_names=feature_names
+        )
+
+    except Exception as e:
+        print(f"  [SHAP] Failed to compute SHAP values: {e}")
+        return {}
+
+    # --- Summary bar plot ---
+    plt.figure(figsize=(8, 6))
+    shap.plots.bar(shap_values_obj, max_display=15, show=False)
+    plt.title(f"SHAP Feature Importance — {cohort.upper()} [{tag.upper()}]")
+    plt.tight_layout()
+    plt.savefig(results_dir / f"plot_shap_bar_{cohort}_{tag}.png")
+    plt.close()
+
+    # --- Beeswarm plot ---
+    plt.figure(figsize=(8, 7))
+    shap.plots.beeswarm(shap_values_obj, max_display=15, show=False)
+    plt.title(f"SHAP Beeswarm — {cohort.upper()} [{tag.upper()}]")
+    plt.tight_layout()
+    plt.savefig(results_dir / f"plot_shap_beeswarm_{cohort}_{tag}.png")
+    plt.close()
+
+    # --- Mean absolute SHAP ---
+    mean_abs_shap = np.abs(shap_values).mean(axis=0)
+
+    shap_dict = {
+        feature_names[i]: round(float(mean_abs_shap[i]), 6)
+        for i in range(n_components)
+    }
+
+    print(
+        f"  [SHAP] Top 5 components: "
+        + ", ".join(
+            f"PC{i+1}={v:.4f}"
+            for i, v in sorted(enumerate(mean_abs_shap), key=lambda x: -x[1])[:5]
+        )
+    )
+
+    return shap_dict
+
+
+# ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
 
@@ -310,18 +410,31 @@ def run_baseline(
         f"(explained variance: {pca.explained_variance_ratio_.sum():.2%})"
     )
 
-    # --- Model Selection & Training ---
+    # --- Model training ---
     RESULTS_DIR.mkdir(exist_ok=True)
     model = _build_model(model_name)
     model.fit(X_train_pca, y_train)
 
     # --- Plots ---
-    _plot_missingness(cohort, all_patients)  # data-dep
-    _plot_kaplan_meier_completeness(cohort, y_test, is_complete_test)  # data-dep
-    _plot_pca_variance(cohort, tag, pca, n_components)  # imp-dep
+    _plot_missingness(cohort, all_patients)
+    _plot_kaplan_meier_completeness(cohort, y_test, is_complete_test)
+    _plot_pca_variance(cohort, tag, pca, n_components)
 
     risk_scores_test = model.predict_risk(X_test_pca)
-    _plot_kaplan_meier_risk(cohort, tag, y_test, risk_scores_test)  # model+imp
+    _plot_kaplan_meier_risk(cohort, tag, y_test, risk_scores_test)
+
+    # --- SHAP Explainability ---
+    print("\n  [SHAP Analysis]")
+    shap_importance = compute_and_plot_shap(
+        model=model,
+        model_name=model_name,
+        X_train_pca=X_train_pca,
+        X_test_pca=X_test_pca,
+        cohort=cohort,
+        tag=tag,
+        results_dir=RESULTS_DIR,
+        n_components=n_components,
+    )
 
     # --- Evaluation ---
     print("\n  [Overall Performance]")
@@ -361,10 +474,21 @@ def run_baseline(
         "pca_explained_variance": round(float(pca.explained_variance_ratio_.sum()), 4),
     }
 
+    if shap_importance:
+        result["shap_importance"] = shap_importance
+
     if imp_extra:
         result["imputation_params"] = imp_extra
 
+    if hasattr(model, "best_params") and model.best_params:
+        result["model_params"] = model.best_params
+
     return result
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 
 if __name__ == "__main__":
