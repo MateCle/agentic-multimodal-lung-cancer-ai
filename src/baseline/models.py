@@ -48,9 +48,39 @@ class CoxNetModel:
             normalize=False,  # It already comes normalized from the pipeline (StandardScaler + PCA)
         )
         self.model.fit(X, y)
-        # We take the alpha in the middle of the path as the baseline reference point
-        n_alphas = len(self.model.alphas_)
-        self._best_alpha_idx = n_alphas // 2
+        alphas = self.model.alphas_
+        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        cv_scores = np.zeros(len(alphas))
+        fold_counts = np.zeros(len(alphas))
+        for tr_idx, va_idx in kf.split(X):
+            X_tr, X_va = X[tr_idx], X[va_idx]
+            y_tr, y_va = y[tr_idx], y[va_idx]
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    fold_model = CoxnetSurvivalAnalysis(
+                        alphas=alphas, l1_ratio=self.l1_ratio,
+                        fit_baseline_model=True, normalize=False,
+                    )
+                    fold_model.fit(X_tr, y_tr)
+                    preds = fold_model.predict(X_va)
+                    for i in range(len(alphas)):
+                        try:
+                            ci, _, _, _, _ = concordance_index_censored(
+                                y_va["Status"], y_va["Time"], preds[:, i]
+                            )
+                            cv_scores[i] += ci
+                            fold_counts[i] += 1
+                        except Exception:
+                            continue
+            except Exception:
+                continue
+        valid = fold_counts > 0
+        mean_scores = np.where(valid, cv_scores / np.maximum(fold_counts, 1), -np.inf)
+        self._best_alpha_idx = int(np.argmax(mean_scores))
+        print(f"  → Best alpha: idx={self._best_alpha_idx}, "
+              f"alpha={alphas[self._best_alpha_idx]:.6f}, "
+              f"CV C-index={mean_scores[self._best_alpha_idx]:.4f}")
         return self
 
     def predict_risk(self, X):
