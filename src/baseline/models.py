@@ -31,8 +31,8 @@ class CoxPHBaseline:
 class CoxNetModel:
     """
     Penalized Cox model (Elastic Net) via scikit-survival.
-    l1_ratio=0.5 → mix igual de L1 y L2.
-    The alpha of the middle of the path is selected as the default predictor.    
+    l1_ratio=0.5 corresponds to an equal mix of L1 and L2 penalties.
+    Alpha is selected via 5-fold CV on C-index over the regularization path.
     """
     def __init__(self, l1_ratio=0.5, alpha_min_ratio=0.1):
         self.l1_ratio = l1_ratio
