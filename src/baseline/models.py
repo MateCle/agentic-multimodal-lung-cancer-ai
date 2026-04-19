@@ -91,7 +91,6 @@ class CoxNetModel:
 
     def score(self, X, y):
         risk = self.predict_risk(X)  # already use _best_alpha_idx
-        from sksurv.metrics import concordance_index_censored
         return concordance_index_censored(y["Status"], y["Time"], risk)[0]
 
 class RandomSurvivalForestModel:
