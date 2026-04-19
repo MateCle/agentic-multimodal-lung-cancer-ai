@@ -15,6 +15,8 @@ import json
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")  # non-interactive backend — avoids tkinter threading crashes with joblib
 import matplotlib.pyplot as plt
 import numpy as np
 from lifelines import KaplanMeierFitter
@@ -40,7 +42,7 @@ DATA_DIR = Path("data/extracted/cache_data")
 SPLITS_DIR = DATA_DIR / "splits"
 RESULTS_DIR = Path("results")
 
-MODEL_CHOICES = ["coxph", "coxnet", "rsf", "xgboost"]
+MODEL_CHOICES = ["coxph", "coxnet", "rsf", "rsf_tuned", "xgboost"]
 
 
 def _build_model(model_name: str):
@@ -51,9 +53,11 @@ def _build_model(model_name: str):
         from src.baseline.models import CoxNetModel
         return CoxNetModel()
     elif model_name == "rsf":
-        # from src.baseline.models import RandomSurvivalForestModel
-        # return RandomSurvivalForestModel()
-        raise NotImplementedError("RSF not yet implemented.")
+        from src.baseline.models import RandomSurvivalForestModel
+        return RandomSurvivalForestModel(tuned=False)
+    elif model_name == "rsf_tuned":
+        from src.baseline.models import RandomSurvivalForestModel
+        return RandomSurvivalForestModel(tuned=True)
     elif model_name == "xgboost":
         from src.baseline.models import XGBoostSurvivalModel
         return XGBoostSurvivalModel()
@@ -363,6 +367,10 @@ def run_baseline(
 
     if imp_extra:
         result["imputation_params"] = imp_extra
+
+    # Persist RSF best params when tuning was used
+    if hasattr(model, "best_params") and model.best_params:
+        result["model_params"] = model.best_params
 
     return result
 

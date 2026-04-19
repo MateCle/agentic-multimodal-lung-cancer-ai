@@ -1,0 +1,36 @@
+[
+  {
+    "cohort": "LUAD",
+    "model": "rsf",
+    "imputation": "knn",
+    "ci_train": 0.9583630739947656,
+    "ci_val": 0.5750293083235639,
+    "ci_test": 0.5898617511520737,
+    "ci_val_complete": 0.5998300764655905,
+    "ci_val_incomplete": 0.5625,
+    "ci_test_complete": 0.599713055954089,
+    "ci_test_incomplete": 0.5227272727272727,
+    "n_train": 251,
+    "n_val": 126,
+    "n_test": 94,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.754
+  },
+  {
+    "cohort": "LUSC",
+    "model": "rsf",
+    "imputation": "knn",
+    "ci_train": 0.9703951602522847,
+    "ci_val": 0.531810766721044,
+    "ci_test": 0.4795799299883314,
+    "ci_val_complete": 0.5643564356435643,
+    "ci_val_incomplete": 0.4336283185840708,
+    "ci_test_complete": 0.5392953929539296,
+    "ci_test_incomplete": 0.45918367346938777,
+    "n_train": 283,
+    "n_val": 72,
+    "n_test": 90,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.862
+  }
+]
