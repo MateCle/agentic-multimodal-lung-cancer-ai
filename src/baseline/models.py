@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.model_selection import KFold
 from sksurv.ensemble import RandomSurvivalForest
 from sksurv.linear_model import CoxPHSurvivalAnalysis, CoxnetSurvivalAnalysis
+from sksurv.metrics import concordance_index_censored
 
 class CoxPHBaseline:
     """
