@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 annotated-types==0.7.0
 anyio==4.12.1
 argon2-cffi==25.1.0
@@ -152,3 +153,23 @@ wrapt==2.1.2
 xgboost==3.2.0
 xxhash==3.6.0
 zstandard==0.25.0
+=======
+# Core dependencies (versioned for reproducibility, flexible for patch updates)
+numpy~=2.4
+pandas~=2.3
+scikit-learn~=1.8
+scikit-survival~=0.27
+xgboost~=3.2
+lifelines~=0.30
+matplotlib~=3.10
+shap~=0.48
+joblib~=1.5
+langgraph~=1.1
+openai~=2.0
+
+# Test dependencies
+pytest~=9.0
+
+# Optional provider (enable only if you use Anthropic in src/orchestrator/llm.py)
+# anthropic~=0.50
+>>>>>>> bbcbaa8 (Add configurable LLM client abstraction with mock support)
