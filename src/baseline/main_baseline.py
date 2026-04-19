@@ -50,9 +50,8 @@ def _build_model(model_name: str):
     if model_name == "coxph":
         return CoxPHBaseline()
     elif model_name == "coxnet":
-        # from src.baseline.models import CoxNetModel
-        # return CoxNetModel()
-        raise NotImplementedError("CoxNet not yet implemented.")
+        from src.baseline.models import CoxNetModel
+        return CoxNetModel()
     elif model_name == "rsf":
         from src.baseline.models import RandomSurvivalForestModel
         return RandomSurvivalForestModel(tuned=False)
@@ -61,7 +60,6 @@ def _build_model(model_name: str):
         return RandomSurvivalForestModel(tuned=True)
     elif model_name == "xgboost":
         from src.baseline.models import XGBoostSurvivalModel
-
         return XGBoostSurvivalModel()
     else:
         raise ValueError(f"Unknown model: {model_name}")
