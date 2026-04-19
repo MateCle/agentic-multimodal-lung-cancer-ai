@@ -27,6 +27,8 @@ from lifelines import KaplanMeierFitter
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
+from src.baseline.pipeline import save_pipeline
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.baseline.explain import compute_shap_importance, plot_shap
@@ -331,6 +333,9 @@ def run_baseline(
     RESULTS_DIR.mkdir(exist_ok=True)
     model = _build_model(model_name)
     model.fit(X_train_pca, y_train)
+
+    # --- Save the fitted pipeline ---
+    save_pipeline(model, scaler, pca, cohort, model_name, imputation)
 
     # --- Plots ---
     _plot_missingness(cohort, all_patients)  # data-dep
