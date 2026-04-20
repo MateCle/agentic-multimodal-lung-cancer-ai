@@ -2,7 +2,7 @@
 LangGraph DAG definition for the multimodal lung cancer orchestrator.
 AFM2-aligned core pipeline:
 
-  DataLoader -> Planner -> Miner (mock) -> Generator (mock) -> Verifier (mock) -> Predictor
+  DataLoader -> Planner -> Miner (LLM) -> Generator (k-NN) -> Verifier (LLM) -> Predictor
                        |                                          ^
                        | (all present)                            | (self-refinement, max 3)
                        +---> Predictor                            v
@@ -23,9 +23,17 @@ from langgraph.graph import END, StateGraph
 
 from src.baseline.pipeline import load_pipeline, pipeline_path
 from src.data_loader import load_patient, load_raw_data
+from src.orchestrator.llm import get_llm_client
+from src.orchestrator.nodes.generator import (
+    build_pool_index,
+    make_generator_node,
+)
 from src.orchestrator.nodes.generator import (
     generator_node as mock_generator,
 )
+
+# Core nodes (real + mock)
+from src.orchestrator.nodes.miner import make_miner_node
 from src.orchestrator.nodes.miner import miner_node as mock_miner
 from src.orchestrator.nodes.planner import planner_node
 from src.orchestrator.nodes.predictor import (
@@ -35,6 +43,10 @@ from src.orchestrator.nodes.predictor import (
     predictor_node as mock_predictor,
 )
 from src.orchestrator.nodes.router import route_after_planner, route_after_verifier
+from src.orchestrator.nodes.verifier import (
+    build_pool_stats,
+    make_verifier_node,
+)
 from src.orchestrator.nodes.verifier import (
     verifier_node as mock_verifier,
 )
@@ -114,6 +126,8 @@ def build_graph(
     model_name: str = "coxph",
     imputation: str = "zero",
     train_patient_ids: list[str] | None = None,
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
 ):
     """
     Build and compile the LangGraph orchestrator.
@@ -143,8 +157,25 @@ def build_graph(
     cohort_map = dict.fromkeys(luad_data, "luad")
     cohort_map.update(dict.fromkeys(lusc_data, "lusc"))
 
+    # --- Load metadata (feature names for Miner prompts) ---
+    metadata = _load_metadata(data_dir)
+
     # --- Load baseline pipelines ---
     pipelines = _load_pipelines(model_name, imputation)
+
+    # --- Initialize pool + LLM ---
+    pool = None
+    pool_stats = None
+    llm = None
+
+    if train_patient_ids is not None:
+        pool = build_pool_index(all_data, train_patient_ids)
+        pool_stats = build_pool_stats(pool)
+        llm = get_llm_client(provider=llm_provider, model=llm_model)
+
+        logger.info(
+            f"AFM2 mode: pool={len(pool)} patients, LLM={llm.__class__.__name__}"
+        )
 
     # --- Build graph ---
     builder = StateGraph(PatientState)
@@ -153,14 +184,23 @@ def build_graph(
     builder.add_node(_DATA_LOADER, _make_data_loader_node(all_data, cohort_map))
     builder.add_node(_PLANNER, planner_node)
 
-    # Miner:  mock
-    builder.add_node(_MINER, mock_miner)
+    # Miner: LLM with metadata, or mock
+    if llm is not None:
+        builder.add_node(_MINER, make_miner_node(llm, metadata))
+    else:
+        builder.add_node(_MINER, mock_miner)
 
-    # Generator: mock
-    builder.add_node(_GENERATOR, mock_generator)
+    # Generator: LLM-guided k-NN retrieval with pool, or mock
+    if pool is not None:
+        builder.add_node(_GENERATOR, make_generator_node(pool, llm, metadata))
+    else:
+        builder.add_node(_GENERATOR, mock_generator)
 
-    # Verifier: mock
-    builder.add_node(_VERIFIER, mock_verifier)
+    # Verifier: distributional + LLM scoring, or mock
+    if pool_stats is not None and llm is not None:
+        builder.add_node(_VERIFIER, make_verifier_node(pool_stats, llm))
+    else:
+        builder.add_node(_VERIFIER, mock_verifier)
 
     # Predictor: baseline pipeline, or mock
     if pipelines:
