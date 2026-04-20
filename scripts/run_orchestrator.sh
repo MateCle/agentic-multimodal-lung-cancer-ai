@@ -33,7 +33,7 @@ export OPENAI_BASE_URL="http://localhost:8000/v1"
 
 echo "Running LangGraph smoke test..."
 singularity exec --nv $VLLM_CONTAINER \
-  python3 scripts/orchestrator.py
+  python3 -m src.orchestrator.run --patient TCGA-05-4244 --verbose
 
 echo "Stopping vLLM server..."
 kill $VLLM_PID
