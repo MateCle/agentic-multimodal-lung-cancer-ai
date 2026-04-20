@@ -1,10 +1,11 @@
 """Exports all node and routing functions for use in graph.py."""
-from src.orchestrator.nodes.planner   import planner_node
-from src.orchestrator.nodes.miner     import miner_node
+
 from src.orchestrator.nodes.generator import generator_node
-from src.orchestrator.nodes.verifier  import verifier_node
-from src.orchestrator.nodes.predictor import predictor_node
-from src.orchestrator.nodes.router    import route_after_planner, route_after_verifier
+from src.orchestrator.nodes.miner import miner_node
+from src.orchestrator.nodes.planner import planner_node
+from src.orchestrator.nodes.predictor import make_predictor_node, predictor_node
+from src.orchestrator.nodes.router import route_after_planner, route_after_verifier
+from src.orchestrator.nodes.verifier import verifier_node
 
 __all__ = [
     "planner_node",
@@ -12,6 +13,7 @@ __all__ = [
     "generator_node",
     "verifier_node",
     "predictor_node",
+    "make_predictor_node",
     "route_after_planner",
     "route_after_verifier",
 ]
