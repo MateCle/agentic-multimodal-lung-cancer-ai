@@ -14,7 +14,89 @@
     "n_val": 126,
     "n_test": 94,
     "pca_n_components": 50,
-    "pca_explained_variance": 0.5898
+    "pca_explained_variance": 0.5898,
+    "shap_top_features": [
+      {
+        "feature": "feat_51",
+        "importance": 0.08786221968933475
+      },
+      {
+        "feature": "feat_63",
+        "importance": 0.08748284705999133
+      },
+      {
+        "feature": "feat_101",
+        "importance": 0.08383956914086181
+      },
+      {
+        "feature": "feat_146",
+        "importance": 0.08230457309892109
+      },
+      {
+        "feature": "feat_96",
+        "importance": 0.08092430509848189
+      },
+      {
+        "feature": "feat_98",
+        "importance": 0.07596417185100009
+      },
+      {
+        "feature": "feat_8",
+        "importance": 0.07581692513419311
+      },
+      {
+        "feature": "feat_82",
+        "importance": 0.07469965399102656
+      },
+      {
+        "feature": "feat_195",
+        "importance": 0.0746966532368237
+      },
+      {
+        "feature": "feat_187",
+        "importance": 0.07388909701621267
+      },
+      {
+        "feature": "feat_165",
+        "importance": 0.07332888244135141
+      },
+      {
+        "feature": "feat_150",
+        "importance": 0.07247853870621408
+      },
+      {
+        "feature": "feat_103",
+        "importance": 0.07246931521427481
+      },
+      {
+        "feature": "feat_151",
+        "importance": 0.0703729986366198
+      },
+      {
+        "feature": "feat_77",
+        "importance": 0.07020886323185593
+      },
+      {
+        "feature": "feat_102",
+        "importance": 0.07011040272319229
+      },
+      {
+        "feature": "feat_79",
+        "importance": 0.0697870603550826
+      },
+      {
+        "feature": "feat_0",
+        "importance": 0.0693568549020374
+      },
+      {
+        "feature": "feat_87",
+        "importance": 0.068984975642031
+      },
+      {
+        "feature": "feat_78",
+        "importance": 0.0684080962378643
+      }
+    ]
   },
   {
     "cohort": "LUSC",
@@ -31,6 +113,88 @@
     "n_val": 72,
     "n_test": 90,
     "pca_n_components": 50,
-    "pca_explained_variance": 0.7133
+    "pca_explained_variance": 0.7133,
+    "shap_top_features": [
+      {
+        "feature": "feat_6",
+        "importance": 0.11851328631952958
+      },
+      {
+        "feature": "feat_3",
+        "importance": 0.1157384875391483
+      },
+      {
+        "feature": "feat_57",
+        "importance": 0.11131346229638542
+      },
+      {
+        "feature": "feat_85",
+        "importance": 0.1111303432885866
+      },
+      {
+        "feature": "feat_5",
+        "importance": 0.11101027821925707
+      },
+      {
+        "feature": "feat_59",
+        "importance": 0.1057989168808657
+      },
+      {
+        "feature": "feat_11",
+        "importance": 0.10258336552632098
+      },
+      {
+        "feature": "feat_35",
+        "importance": 0.10088096538419722
+      },
+      {
+        "feature": "feat_7",
+        "importance": 0.09948733074179401
+      },
+      {
+        "feature": "feat_27",
+        "importance": 0.0990023920659272
+      },
+      {
+        "feature": "feat_60",
+        "importance": 0.09896029645370663
+      },
+      {
+        "feature": "feat_53",
+        "importance": 0.09841117354006275
+      },
+      {
+        "feature": "feat_56",
+        "importance": 0.09708092116142804
+      },
+      {
+        "feature": "feat_43",
+        "importance": 0.09611717640475899
+      },
+      {
+        "feature": "feat_14",
+        "importance": 0.09601283565232357
+      },
+      {
+        "feature": "feat_36",
+        "importance": 0.09226542156446525
+      },
+      {
+        "feature": "feat_80",
+        "importance": 0.0912540734414767
+      },
+      {
+        "feature": "feat_64",
+        "importance": 0.09095163354582006
+      },
+      {
+        "feature": "feat_72",
+        "importance": 0.09080378310775104
+      },
+      {
+        "feature": "feat_74",
+        "importance": 0.09077745946610363
+      }
+    ]
   }
 ]
