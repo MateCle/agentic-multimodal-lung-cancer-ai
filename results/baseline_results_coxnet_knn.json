@@ -14,7 +14,89 @@
     "n_val": 126,
     "n_test": 94,
     "pca_n_components": 50,
-    "pca_explained_variance": 0.754
+    "pca_explained_variance": 0.754,
+    "shap_top_features": [
+      {
+        "feature": "promoter_mean_SRP9P1,TNKS2",
+        "importance": 0.010455569070784933
+      },
+      {
+        "feature": "promoter_mean_AL033519.3",
+        "importance": 0.010446626182820194
+      },
+      {
+        "feature": "promoter_mean_JMJD1C,PRELID1P3",
+        "importance": 0.010309340715923786
+      },
+      {
+        "feature": "promoter_mean_ACTG1P20,TMEM222",
+        "importance": 0.010155725629135071
+      },
+      {
+        "feature": "wsi_578",
+        "importance": 0.010082419169590002
+      },
+      {
+        "feature": "wsi_313",
+        "importance": 0.010017268346663765
+      },
+      {
+        "feature": "wsi_168",
+        "importance": 0.009994850890889096
+      },
+      {
+        "feature": "promoter_mean_RPS2P6",
+        "importance": 0.009972990125347608
+      },
+      {
+        "feature": "promoter_mean_AC022296.3",
+        "importance": 0.009904883181133058
+      },
+      {
+        "feature": "promoter_mean_TOMM20P1",
+        "importance": 0.009853897899003736
+      },
+      {
+        "feature": "promoter_mean_AC026410.1",
+        "importance": 0.00977130016756085
+      },
+      {
+        "feature": "promoter_mean_OGA",
+        "importance": 0.00975323060556613
+      },
+      {
+        "feature": "promoter_mean_BCAS4,TMSB4XP6",
+        "importance": 0.009714392688794132
+      },
+      {
+        "feature": "promoter_mean_AL031133.1",
+        "importance": 0.009706525365654755
+      },
+      {
+        "feature": "promoter_mean_OPTN,SNRPGP5",
+        "importance": 0.009693867143771526
+      },
+      {
+        "feature": "promoter_mean_AC069243.1,GOLIM4",
+        "importance": 0.009680274506380345
+      },
+      {
+        "feature": "wsi_641",
+        "importance": 0.009660867036236462
+      },
+      {
+        "feature": "promoter_mean_AC027237.1,KIF23",
+        "importance": 0.009545410170707877
+      },
+      {
+        "feature": "promoter_mean_AF131216.4,MTMR9",
+        "importance": 0.00952203582218835
+      },
+      {
+        "feature": "promoter_mean_CALHM4,TRAPPC3L",
+        "importance": 0.009506260607534602
+      }
+    ]
   },
   {
     "cohort": "LUSC",
@@ -31,6 +113,88 @@
     "n_val": 72,
     "n_test": 90,
     "pca_n_components": 50,
-    "pca_explained_variance": 0.862
+    "pca_explained_variance": 0.862,
+    "shap_top_features": [
+      {
+        "feature": "feat_2372",
+        "importance": 0.024625567252353042
+      },
+      {
+        "feature": "feat_2036",
+        "importance": 0.023183812610832123
+      },
+      {
+        "feature": "feat_2529",
+        "importance": 0.021858956709376508
+      },
+      {
+        "feature": "feat_1921",
+        "importance": 0.02138549876878899
+      },
+      {
+        "feature": "feat_2332",
+        "importance": 0.021275550792564588
+      },
+      {
+        "feature": "feat_2393",
+        "importance": 0.021079164492204892
+      },
+      {
+        "feature": "feat_1924",
+        "importance": 0.021050993458696217
+      },
+      {
+        "feature": "feat_2517",
+        "importance": 0.02095598553807715
+      },
+      {
+        "feature": "feat_2757",
+        "importance": 0.020935608034246274
+      },
+      {
+        "feature": "feat_1829",
+        "importance": 0.020931989124636636
+      },
+      {
+        "feature": "feat_1976",
+        "importance": 0.020925533789571404
+      },
+      {
+        "feature": "feat_1984",
+        "importance": 0.020766998839753612
+      },
+      {
+        "feature": "feat_1893",
+        "importance": 0.02052533682048454
+      },
+      {
+        "feature": "feat_2741",
+        "importance": 0.02001017620581069
+      },
+      {
+        "feature": "feat_2227",
+        "importance": 0.019636308279974292
+      },
+      {
+        "feature": "feat_2555",
+        "importance": 0.019592225193721745
+      },
+      {
+        "feature": "feat_2551",
+        "importance": 0.01937390145982574
+      },
+      {
+        "feature": "feat_2131",
+        "importance": 0.019285770067727016
+      },
+      {
+        "feature": "feat_2306",
+        "importance": 0.019256017070793715
+      },
+      {
+        "feature": "feat_2730",
+        "importance": 0.019115674509201555
+      }
+    ]
   }
 ]

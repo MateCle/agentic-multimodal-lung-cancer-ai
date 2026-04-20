@@ -25,7 +25,7 @@ DataLoader → Planner → Miner → Generator → Verifier → Predictor
 6. **Predictor:** Produces the final survival prediction using all available and imputed modalities.
 
 ## Baseline
-A naive ML baseline (`src/baseline/`) establishes the lower-bound performance using zero-imputation + PCA-50 + Cox Proportional Hazards (scikit-survival). It reports the Harrell C-index overall and stratified by data completeness (complete vs. incomplete modalities), along with Kaplan-Meier survival curves.
+A baseline ML pipeline (`src/baseline/`) establishes a lower-bound reference using selectable imputation strategies and survival models, followed by PCA-50. The default run uses zero-imputation + Cox Proportional Hazards (scikit-survival), and the CLI also supports KNN, KNN-tuned, MICE, CoxNet, RSF, RSF-tuned, and XGBoost. It reports the Harrell C-index overall and stratified by data completeness (complete vs. incomplete modalities), along with Kaplan-Meier survival curves.
 
 ## Repository Structure
 
@@ -33,7 +33,7 @@ A naive ML baseline (`src/baseline/`) establishes the lower-bound performance us
 project/
 ├── data/                  # IGNORED BY GIT — Local storage for .pkl, .json, and .zip files
 ├── notebooks/             # Jupyter notebooks for EDA and prototyping
-├── scripts/               # Utility scripts (e.g., graph compilation and smoke tests)
+├── scripts/               # Utility scripts and batch runners
 ├── src/
 │   ├── baseline/          # ML baseline for survival prediction comparison
 │   │   ├── main_baseline.py   # Full pipeline: Load → Zero Imp → PCA-50 → CoxPH → C-index
@@ -106,10 +106,16 @@ python -m src.baseline.main_baseline
 ```
 Outputs C-index metrics and diagnostic plots to `results/`.
 
+To run the full batch of model/imputation combinations, use:
+```bash
+python scripts/batch_baseline.py
+```
+
 ### Run the Orchestrator (Smoke Test)
 ```bash
-python scripts/run_graph.py --patient TCGA-XX-XXXX
+python scripts/orchestrator.py
 ```
+This script runs a small smoke test over LUAD patients and one patient with missing RNA.
 
 ## Testing
 ```bash

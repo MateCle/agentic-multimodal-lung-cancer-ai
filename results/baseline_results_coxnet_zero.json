@@ -14,7 +14,89 @@
     "n_val": 126,
     "n_test": 94,
     "pca_n_components": 50,
-    "pca_explained_variance": 0.9329
+    "pca_explained_variance": 0.9329,
+    "shap_top_features": [
+      {
+        "feature": "global_mean_methylation",
+        "importance": 2.4269183122353162e-05
+      },
+      {
+        "feature": "mean_oncogene_promoter_meth",
+        "importance": 2.423080540146921e-05
+      },
+      {
+        "feature": "mean_tumor_suppressor_promoter_meth",
+        "importance": 2.4192568775147326e-05
+      },
+      {
+        "feature": "promoter_mean_NOL4L",
+        "importance": 2.4168518807717683e-05
+      },
+      {
+        "feature": "promoter_mean_NRBP2",
+        "importance": 2.4163772173676632e-05
+      },
+      {
+        "feature": "dna_repair_meth_mean",
+        "importance": 2.416297618737362e-05
+      },
+      {
+        "feature": "promoter_mean_NUBP2,SPSB3",
+        "importance": 2.4162970863050513e-05
+      },
+      {
+        "feature": "promoter_mean_SLC27A1",
+        "importance": 2.415940356657546e-05
+      },
+      {
+        "feature": "promoter_mean_PPP1R11",
+        "importance": 2.41543294866639e-05
+      },
+      {
+        "feature": "promoter_mean_AL662899.2,CSNK2B",
+        "importance": 2.4150267028140818e-05
+      },
+      {
+        "feature": "promoter_mean_DHX16",
+        "importance": 2.4147980231370602e-05
+      },
+      {
+        "feature": "promoter_mean_ZFHX3",
+        "importance": 2.4147636812530847e-05
+      },
+      {
+        "feature": "promoter_mean_FER1L5",
+        "importance": 2.4144442218672584e-05
+      },
+      {
+        "feature": "promoter_mean_ERCC2",
+        "importance": 2.414388316474738e-05
+      },
+      {
+        "feature": "promoter_mean_CLK3",
+        "importance": 2.4143571691846202e-05
+      },
+      {
+        "feature": "promoter_mean_NELFE,SKIV2L",
+        "importance": 2.4141082570798297e-05
+      },
+      {
+        "feature": "promoter_mean_AKT1S1,PNKP",
+        "importance": 2.414060338171956e-05
+      },
+      {
+        "feature": "promoter_mean_CLK2",
+        "importance": 2.414053416551929e-05
+      },
+      {
+        "feature": "promoter_mean_KLHL25",
+        "importance": 2.4139352165791737e-05
+      },
+      {
+        "feature": "promoter_mean_RHBDF1",
+        "importance": 2.413888628752076e-05
+      }
+    ]
   },
   {
     "cohort": "LUSC",
@@ -31,6 +113,88 @@
     "n_val": 72,
     "n_test": 90,
     "pca_n_components": 50,
-    "pca_explained_variance": 0.9092
+    "pca_explained_variance": 0.9092,
+    "shap_top_features": [
+      {
+        "feature": "REACTOME_POST_TRANSLATIONAL_PROTEIN_MODIFICATION",
+        "importance": 6.492802039321813e-05
+      },
+      {
+        "feature": "REACTOME_INTRACELLULAR_SIGNALING_BY_SECOND_MESSENGERS",
+        "importance": 6.48995643426313e-05
+      },
+      {
+        "feature": "REACTOME_DISEASES_OF_SIGNAL_TRANSDUCTION_BY_GROWTH_FACTOR_RECEPTORS_AND_SECOND_MESSENGERS",
+        "importance": 6.488877991893443e-05
+      },
+      {
+        "feature": "REACTOME_MAPK_FAMILY_SIGNALING_CASCADES",
+        "importance": 6.483953544057914e-05
+      },
+      {
+        "feature": "REACTOME_MEMBRANE_TRAFFICKING",
+        "importance": 6.48274682021232e-05
+      },
+      {
+        "feature": "REACTOME_BETA_CATENIN_INDEPENDENT_WNT_SIGNALING",
+        "importance": 6.481708862110694e-05
+      },
+      {
+        "feature": "REACTOME_METABOLISM_OF_LIPIDS",
+        "importance": 6.481339626075485e-05
+      },
+      {
+        "feature": "REACTOME_SIGNALING_BY_RHO_GTPASES_MIRO_GTPASES_AND_RHOBTB3",
+        "importance": 6.479518809537254e-05
+      },
+      {
+        "feature": "REACTOME_NERVOUS_SYSTEM_DEVELOPMENT",
+        "importance": 6.478570599692527e-05
+      },
+      {
+        "feature": "REACTOME_RHO_GTPASE_CYCLE",
+        "importance": 6.478469145141245e-05
+      },
+      {
+        "feature": "REACTOME_MAPK1_MAPK3_SIGNALING",
+        "importance": 6.478016501758578e-05
+      },
+      {
+        "feature": "REACTOME_METABOLISM_OF_CARBOHYDRATES_AND_CARBOHYDRATE_DERIVATIVES",
+        "importance": 6.477679945795179e-05
+      },
+      {
+        "feature": "HALLMARK_HEME_METABOLISM",
+        "importance": 6.47747752445487e-05
+      },
+      {
+        "feature": "REACTOME_CLATHRIN_MEDIATED_ENDOCYTOSIS",
+        "importance": 6.476989274426805e-05
+      },
+      {
+        "feature": "REACTOME_MITF_M_REGULATED_MELANOCYTE_DEVELOPMENT",
+        "importance": 6.476580529648066e-05
+      },
+      {
+        "feature": "REACTOME_MITF_M_DEPENDENT_GENE_EXPRESSION",
+        "importance": 6.475922050589231e-05
+      },
+      {
+        "feature": "REACTOME_TRANSPORT_TO_THE_GOLGI_AND_SUBSEQUENT_MODIFICATION",
+        "importance": 6.47579328135106e-05
+      },
+      {
+        "feature": "REACTOME_ASPARAGINE_N_LINKED_GLYCOSYLATION",
+        "importance": 6.47546550510844e-05
+      },
+      {
+        "feature": "REACTOME_CLASS_I_MHC_MEDIATED_ANTIGEN_PROCESSING_PRESENTATION",
+        "importance": 6.474697279539803e-05
+      },
+      {
+        "feature": "REACTOME_PHOSPHOLIPID_METABOLISM",
+        "importance": 6.474616311003678e-05
+      }
+    ]
   }
 ]

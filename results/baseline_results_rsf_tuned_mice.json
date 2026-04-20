@@ -1,0 +1,214 @@
+[
+  {
+    "cohort": "LUAD",
+    "model": "rsf_tuned",
+    "imputation": "mice",
+    "ci_train": 0.9395669759695455,
+    "ci_val": 0.5041031652989449,
+    "ci_test": 0.685099846390169,
+    "ci_val_complete": 0.5182667799490229,
+    "ci_val_incomplete": 0.5,
+    "ci_test_complete": 0.6843615494978479,
+    "ci_test_incomplete": 0.7045454545454546,
+    "n_train": 251,
+    "n_val": 126,
+    "n_test": 94,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.5898,
+    "model_params": {
+      "n_estimators": 300,
+      "max_depth": 5,
+      "min_samples_split": 6,
+      "min_samples_leaf": 3,
+      "max_features": "log2"
+    },
+    "shap_top_features": [
+      {
+        "feature": "feat_95",
+        "importance": 0.158308255238092
+      },
+      {
+        "feature": "feat_179",
+        "importance": 0.15797462099122153
+      },
+      {
+        "feature": "feat_82",
+        "importance": 0.15758511205979214
+      },
+      {
+        "feature": "feat_101",
+        "importance": 0.15480215251432736
+      },
+      {
+        "feature": "feat_52",
+        "importance": 0.15206925325357185
+      },
+      {
+        "feature": "feat_165",
+        "importance": 0.14960460640336448
+      },
+      {
+        "feature": "feat_38",
+        "importance": 0.1492393950630983
+      },
+      {
+        "feature": "feat_55",
+        "importance": 0.14706144594800521
+      },
+      {
+        "feature": "feat_186",
+        "importance": 0.14471951446332543
+      },
+      {
+        "feature": "feat_172",
+        "importance": 0.14420670718532025
+      },
+      {
+        "feature": "feat_63",
+        "importance": 0.14356077320897223
+      },
+      {
+        "feature": "feat_150",
+        "importance": 0.14204954162311267
+      },
+      {
+        "feature": "feat_103",
+        "importance": 0.1414817692186081
+      },
+      {
+        "feature": "feat_195",
+        "importance": 0.14144680303100488
+      },
+      {
+        "feature": "feat_98",
+        "importance": 0.1404277571377657
+      },
+      {
+        "feature": "feat_151",
+        "importance": 0.1379765917813315
+      },
+      {
+        "feature": "feat_61",
+        "importance": 0.13761564638337578
+      },
+      {
+        "feature": "feat_115",
+        "importance": 0.13605483559828666
+      },
+      {
+        "feature": "feat_60",
+        "importance": 0.13572842291095158
+      },
+      {
+        "feature": "feat_96",
+        "importance": 0.13553763582145337
+      }
+    ]
+  },
+  {
+    "cohort": "LUSC",
+    "model": "rsf_tuned",
+    "imputation": "mice",
+    "ci_train": 0.975929978118162,
+    "ci_val": 0.401305057096248,
+    "ci_test": 0.5612602100350058,
+    "ci_val_complete": 0.46534653465346537,
+    "ci_val_incomplete": 0.2743362831858407,
+    "ci_test_complete": 0.6233062330623306,
+    "ci_test_incomplete": 0.5612244897959183,
+    "n_train": 283,
+    "n_val": 72,
+    "n_test": 90,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.7133,
+    "model_params": {
+      "n_estimators": 100,
+      "max_depth": null,
+      "min_samples_split": 6,
+      "min_samples_leaf": 3,
+      "max_features": "sqrt"
+    },
+    "shap_top_features": [
+      {
+        "feature": "feat_10",
+        "importance": 0.3645344141532057
+      },
+      {
+        "feature": "feat_82",
+        "importance": 0.3176165058433304
+      },
+      {
+        "feature": "feat_59",
+        "importance": 0.31559004717762285
+      },
+      {
+        "feature": "feat_70",
+        "importance": 0.3100022459150082
+      },
+      {
+        "feature": "feat_7",
+        "importance": 0.2932311437160353
+      },
+      {
+        "feature": "feat_87",
+        "importance": 0.29011423774714395
+      },
+      {
+        "feature": "feat_74",
+        "importance": 0.2890035006521252
+      },
+      {
+        "feature": "feat_29",
+        "importance": 0.287996403445058
+      },
+      {
+        "feature": "feat_11",
+        "importance": 0.28503952551768597
+      },
+      {
+        "feature": "feat_46",
+        "importance": 0.28480954359241417
+      },
+      {
+        "feature": "feat_31",
+        "importance": 0.2844053310336849
+      },
+      {
+        "feature": "feat_81",
+        "importance": 0.2841514218203905
+      },
+      {
+        "feature": "feat_9",
+        "importance": 0.28400484665714776
+      },
+      {
+        "feature": "feat_3",
+        "importance": 0.2832402856395877
+      },
+      {
+        "feature": "feat_39",
+        "importance": 0.28170660411938464
+      },
+      {
+        "feature": "feat_36",
+        "importance": 0.28052516164001556
+      },
+      {
+        "feature": "feat_53",
+        "importance": 0.27674529615813726
+      },
+      {
+        "feature": "feat_21",
+        "importance": 0.27571429267234043
+      },
+      {
+        "feature": "feat_15",
+        "importance": 0.2740382963539787
+      },
+      {
+        "feature": "feat_57",
+        "importance": 0.27283720577316095
+      }
+    ]
+  }
+]

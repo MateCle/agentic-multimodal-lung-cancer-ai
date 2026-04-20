@@ -18,7 +18,89 @@
     "imputation_params": {
       "n_neighbors": 5,
       "weights": "distance"
-    }
+    },
+    "shap_top_features": [
+      {
+        "feature": "promoter_mean_SRP9P1,TNKS2",
+        "importance": 0.010455569070784931
+      },
+      {
+        "feature": "promoter_mean_AL033519.3",
+        "importance": 0.010446626182820195
+      },
+      {
+        "feature": "promoter_mean_JMJD1C,PRELID1P3",
+        "importance": 0.010309340715923786
+      },
+      {
+        "feature": "promoter_mean_ACTG1P20,TMEM222",
+        "importance": 0.01015572562913507
+      },
+      {
+        "feature": "wsi_578",
+        "importance": 0.010082419169590006
+      },
+      {
+        "feature": "wsi_313",
+        "importance": 0.010017268346663768
+      },
+      {
+        "feature": "wsi_168",
+        "importance": 0.009994850890889096
+      },
+      {
+        "feature": "promoter_mean_RPS2P6",
+        "importance": 0.009972990125347608
+      },
+      {
+        "feature": "promoter_mean_AC022296.3",
+        "importance": 0.00990488318113306
+      },
+      {
+        "feature": "promoter_mean_TOMM20P1",
+        "importance": 0.00985389789900374
+      },
+      {
+        "feature": "promoter_mean_AC026410.1",
+        "importance": 0.00977130016756085
+      },
+      {
+        "feature": "promoter_mean_OGA",
+        "importance": 0.009753230605566132
+      },
+      {
+        "feature": "promoter_mean_BCAS4,TMSB4XP6",
+        "importance": 0.009714392688794133
+      },
+      {
+        "feature": "promoter_mean_AL031133.1",
+        "importance": 0.009706525365654754
+      },
+      {
+        "feature": "promoter_mean_OPTN,SNRPGP5",
+        "importance": 0.009693867143771526
+      },
+      {
+        "feature": "promoter_mean_AC069243.1,GOLIM4",
+        "importance": 0.009680274506380343
+      },
+      {
+        "feature": "wsi_641",
+        "importance": 0.009660867036236464
+      },
+      {
+        "feature": "promoter_mean_AC027237.1,KIF23",
+        "importance": 0.009545410170707879
+      },
+      {
+        "feature": "promoter_mean_AF131216.4,MTMR9",
+        "importance": 0.009522035822188347
+      },
+      {
+        "feature": "promoter_mean_CALHM4,TRAPPC3L",
+        "importance": 0.009506260607534607
+      }
+    ]
   },
   {
     "cohort": "LUSC",
@@ -39,6 +121,88 @@
     "imputation_params": {
       "n_neighbors": 7,
       "weights": "distance"
-    }
+    },
+    "shap_top_features": [
+      {
+        "feature": "feat_2372",
+        "importance": 0.02299530838522945
+      },
+      {
+        "feature": "feat_2036",
+        "importance": 0.021963530295944958
+      },
+      {
+        "feature": "feat_2393",
+        "importance": 0.021692487503874206
+      },
+      {
+        "feature": "feat_1921",
+        "importance": 0.021129681047338925
+      },
+      {
+        "feature": "feat_2332",
+        "importance": 0.020647528929360212
+      },
+      {
+        "feature": "feat_2529",
+        "importance": 0.02041116115848432
+      },
+      {
+        "feature": "feat_2741",
+        "importance": 0.020316198967680645
+      },
+      {
+        "feature": "feat_1984",
+        "importance": 0.020310758834262716
+      },
+      {
+        "feature": "feat_1829",
+        "importance": 0.020242523780000556
+      },
+      {
+        "feature": "feat_2178",
+        "importance": 0.019875962077934406
+      },
+      {
+        "feature": "feat_2310",
+        "importance": 0.019766745907990303
+      },
+      {
+        "feature": "feat_2730",
+        "importance": 0.01967528199010263
+      },
+      {
+        "feature": "feat_2757",
+        "importance": 0.01965018804467619
+      },
+      {
+        "feature": "feat_2517",
+        "importance": 0.019618849453136057
+      },
+      {
+        "feature": "feat_1893",
+        "importance": 0.019499037575263577
+      },
+      {
+        "feature": "feat_2500",
+        "importance": 0.01949797309660944
+      },
+      {
+        "feature": "feat_2511",
+        "importance": 0.019416789685098124
+      },
+      {
+        "feature": "feat_1976",
+        "importance": 0.01935236306603267
+      },
+      {
+        "feature": "feat_1924",
+        "importance": 0.019070077377552223
+      },
+      {
+        "feature": "feat_2611",
+        "importance": 0.018965005564794905
+      }
+    ]
   }
 ]
