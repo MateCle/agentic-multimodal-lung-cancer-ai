@@ -68,6 +68,8 @@ def build_pool_index(raw_data: dict, patient_ids: list[str]) -> list[dict]:
         for mod in MODALITY_KEYS:
             if patient[mod] is not None:
                 arr = np.array(patient[mod]).flatten().astype(np.float32)
+                if arr.size != MODALITY_DIMS[mod]:
+                    continue
                 entry["features"][mod] = arr
                 norm = np.linalg.norm(arr)
                 entry["features_norm"][mod] = arr / norm if norm > 0 else arr
