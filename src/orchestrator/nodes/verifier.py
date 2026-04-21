@@ -87,7 +87,12 @@ def build_pool_stats(pool: list[dict]) -> dict[str, dict]:
     """Compute per-feature mean and std for each modality from the pool."""
     stats = {}
     for mod in MODALITY_KEYS:
-        arrays = [e["features"][mod] for e in pool if mod in e["features"]]
+        expected_dim = MODALITY_DIMS[mod]
+        arrays = [
+            e["features"][mod]
+            for e in pool
+            if mod in e["features"] and e["features"][mod].shape == (expected_dim,)
+        ]
 
         if len(arrays) < MIN_PATIENTS_FOR_STATS:
             stats[mod] = {
