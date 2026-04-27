@@ -8,6 +8,8 @@ from typing import Annotated, Optional, TypedDict
 
 import numpy as np
 
+from src.orchestrator.agents.base import AgentSummary
+
 
 class PatientState(TypedDict):
     """
@@ -32,7 +34,7 @@ class PatientState(TypedDict):
     missing_modalities: list[str]
 
     # Summaries from modality understanding agents (Phase 4)
-    agent_summaries: dict[str, str]
+    agent_summaries: dict[str, AgentSummary]
 
     # Mining rules produced by the Miner node (AFM2).
     mining_rules: dict[str, str]
