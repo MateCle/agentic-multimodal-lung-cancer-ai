@@ -232,7 +232,7 @@ def _impute_mice(
     n_components_per_modality: int = 150,
     max_iter: int = 10,
     random_state: int = 42,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
     """
     MICE imputation with per-modality PCA reduction for scalability.
 
@@ -248,6 +248,7 @@ def _impute_mice(
     ranges = _modality_ranges()
 
     reduced_splits = {"train": [], "val": [], "test": []}
+    per_modality_transforms: dict = {}  # mod -> (scaler, pca), only for non-skipped
     splits = {"train": X_train, "val": X_val, "test": X_test}
 
     print(
@@ -282,7 +283,7 @@ def _impute_mice(
         n_comp = min(n_components_per_modality, X_avail.shape[0] - 1, X_avail.shape[1])
         pca = PCA(n_components=n_comp, random_state=42)
         pca.fit(scaler.transform(X_avail))
-
+        per_modality_transforms[mod] = (scaler, pca)
         explained = pca.explained_variance_ratio_.sum()
         print(f"    {mod}: {n_comp} components ({explained:.1%} variance explained)")
 
@@ -314,6 +315,7 @@ def _impute_mice(
         imputer.fit_transform(X_train_reduced),
         imputer.transform(X_val_reduced),
         imputer.transform(X_test_reduced),
+        per_modality_transforms,
     )
 
 
@@ -344,7 +346,10 @@ def apply_imputation(
         (X_train_imp, X_val_imp, X_test_imp): Imputed feature matrices.
             NOTE: output dimensionality may differ from input when
             per-modality PCA is applied (e.g. MICE returns ~200 dims).
-        extra: Dict with additional info (e.g. best_params for knn_tuned).
+        extra: Dict with additional info:
+            - 'best_params' for knn_tuned
+            - 'per_modality_transforms' for mice (dict[str, (scaler, pca)] for
+              each non-skipped modality, needed at inference time)
     """
     if strategy == "zero":
         return _impute_zero(X_train, X_val, X_test), {}
@@ -359,7 +364,8 @@ def apply_imputation(
         return (X_tr, X_va, X_te), params
 
     elif strategy == "mice":
-        return _impute_mice(X_train, X_val, X_test), {}
+        X_tr, X_va, X_te, transforms = _impute_mice(X_train, X_val, X_test)
+        return (X_tr, X_va, X_te), {"per_modality_transforms": transforms}
 
     else:
         raise ValueError(
