@@ -91,7 +91,8 @@ class VisualAgent(ModalityAgent):
         qnorm = float(np.linalg.norm(query)) + 1e-9
         sims: list[tuple[float, dict]] = []
         for entry in self.pool:
-            other = entry.get("wsi")
+            features = entry.get("features", {})
+            other = features.get("wsi")
             if other is None:
                 continue
             o = np.asarray(other, dtype=np.float32).flatten()
@@ -109,12 +110,12 @@ class VisualAgent(ModalityAgent):
         lines = ["Top similar patients in the reference cohort (cosine sim):"]
         for sim, entry in top:
             pid = entry.get("patient_id", "<unknown>")
-            cohort = entry.get("cohort", "")
-            active = self._active_clinical(entry.get("clinical"))
+            features = entry.get("features", {})
+            active = self._active_clinical(features.get("clinical"))
             active_str = (
                 ", ".join(active[:8]) if active else "(no active clinical fields)"
             )
-            lines.append(f"  - {pid} (cohort={cohort}, sim={sim:.3f}): {active_str}")
+            lines.append(f"  - {pid} (sim={sim:.3f}): {active_str}")
         return "\n".join(lines)
 
     def _active_clinical(self, clinical) -> list[str]:
