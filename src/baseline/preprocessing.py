@@ -229,7 +229,7 @@ def _impute_mice(
     X_train: np.ndarray,
     X_val: np.ndarray,
     X_test: np.ndarray,
-    n_components_per_modality: int = 50,
+    n_components_per_modality: int = 150,
     max_iter: int = 10,
     random_state: int = 42,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
