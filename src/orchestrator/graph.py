@@ -68,13 +68,29 @@ _VERIFIER = "verifier"
 _PREDICTOR = "predictor"
 
 
-def _load_metadata(data_dir: Path) -> dict:
-    """Load feature name metadata from either cohort (columns are shared for transcriptomics)."""
+def _load_metadata_per_cohort(data_dir: Path) -> dict:
+    """Load feature-name metadata for both cohorts, keyed by cohort."""
+    out: dict = {}
     for cohort in ("luad", "lusc"):
         meta_path = data_dir / f"tcga_{cohort}_metadata.pkl"
         if meta_path.exists():
             with open(meta_path, "rb") as f:
-                return pickle.load(f)
+                out[cohort] = pickle.load(f)
+        else:
+            out[cohort] = {}
+    return out
+
+
+def _load_metadata(data_dir: Path) -> dict:
+    """Backward-compatible: return metadata of the first cohort found.
+
+    Used by the Miner / agent prompts where transcriptomics column names
+    are shared across cohorts.
+    """
+    per_cohort = _load_metadata_per_cohort(data_dir)
+    for cohort in ("luad", "lusc"):
+        if per_cohort.get(cohort):
+            return per_cohort[cohort]
     return {}
 
 
@@ -108,6 +124,9 @@ def _make_data_loader_node(all_data: dict, cohort_map: dict):
             "verification_scores": {},
             "verification_passed": False,
             "survival_prediction": None,
+            "risk_class": "",
+            "top_shap_features": [],
+            "source_map": {},
             "routing_decision": "",
             "execution_log": [log],
         }
@@ -129,8 +148,8 @@ def _load_pipelines(model_name: str, imputation: str) -> dict:
 
 def build_graph(
     data_dir: Path,
-    model_name: str = "coxph",
-    imputation: str = "zero",
+    model_name: str = "coxnet",
+    imputation: str = "mice",
     train_patient_ids: list[str] | None = None,
     llm_provider: str | None = None,
     llm_model: str | None = None,
@@ -165,6 +184,7 @@ def build_graph(
 
     # --- Load metadata (feature names for Miner prompts) ---
     metadata = _load_metadata(data_dir)
+    metadata_per_cohort = _load_metadata_per_cohort(data_dir)
 
     # --- Load baseline pipelines ---
     pipelines = _load_pipelines(model_name, imputation)
@@ -214,9 +234,12 @@ def build_graph(
     else:
         builder.add_node(_VERIFIER, mock_verifier)
 
-    # Predictor: baseline pipeline, or mock
+    # Predictor: baseline pipeline + per-cohort metadata for SHAP, or mock
     if pipelines:
-        builder.add_node(_PREDICTOR, make_predictor_node(pipelines))
+        builder.add_node(
+            _PREDICTOR,
+            make_predictor_node(pipelines, metadata_per_cohort),
+        )
     else:
         builder.add_node(_PREDICTOR, mock_predictor)
 
