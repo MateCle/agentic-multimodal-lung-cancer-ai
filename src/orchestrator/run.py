@@ -64,6 +64,9 @@ def run_patient(patient_id: str, graph, verbose: bool = False) -> dict:
         "verification_scores": {},
         "verification_passed": False,
         "survival_prediction": None,
+        "risk_class": "",
+        "top_shap_features": [],
+        "source_map": {},
         "routing_decision": "",
         "execution_log": [],
         "correction_hints": {},
@@ -84,6 +87,9 @@ def run_patient(patient_id: str, graph, verbose: bool = False) -> dict:
     print(f"  Verification scores: {result['verification_scores']}")
     print(f"  Verification passed: {result['verification_passed']}")
     print(f"  Survival prediction: {result['survival_prediction']}")
+    print(f"  Risk class         : {result['risk_class']}")
+    print(f"  Top SHAP features  : {result['top_shap_features']}")
+    print(f"  Source map         : {result['source_map']}")
 
     return result
 
@@ -114,14 +120,14 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="coxph",
-        help="Baseline model for Predictor (default: coxph).",
+        default="coxnet",
+        help="Baseline model for Predictor (default: coxnet).",
     )
     parser.add_argument(
         "--imputation",
         type=str,
-        default="zero",
-        help="Imputation strategy the baseline was trained with (default: zero).",
+        default="mice",
+        help="Imputation strategy the baseline was trained with (default: mice).",
     )
     parser.add_argument(
         "--verbose",
