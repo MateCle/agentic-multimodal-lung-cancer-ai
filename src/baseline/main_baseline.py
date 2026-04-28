@@ -31,7 +31,6 @@ from src.baseline.pipeline import save_pipeline
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.baseline.explain import compute_shap_importance, plot_shap
 from src.baseline.models import CoxPHBaseline
 from src.baseline.preprocessing import (
     IMPUTATION_STRATEGIES,
@@ -44,6 +43,7 @@ from src.data_loader import (
     load_split,
     load_split_patients,
 )
+from src.explain import compute_shap_importance, plot_shap
 
 DATA_DIR = Path("data/extracted/cache_data")
 SPLITS_DIR = DATA_DIR / "splits"
@@ -334,8 +334,29 @@ def run_baseline(
     model = _build_model(model_name)
     model.fit(X_train_pca, y_train)
 
+    # --- Compute training risk-score tertiles for clinical stratification ---
+    risk_scores_train = np.asarray(model.predict_risk(X_train_pca)).flatten()
+    risk_tertiles = (
+        float(np.percentile(risk_scores_train, 33)),
+        float(np.percentile(risk_scores_train, 67)),
+    )
+    print(
+        f"  [Tertiles] Risk score 33%/67%: "
+        f"{risk_tertiles[0]:.4f} / {risk_tertiles[1]:.4f}"
+    )
+
     # --- Save the fitted pipeline ---
-    save_pipeline(model, scaler, pca, cohort, model_name, imputation)
+    per_modality_transforms = imp_extra.get("per_modality_transforms")
+    save_pipeline(
+        model,
+        scaler,
+        pca,
+        cohort,
+        model_name,
+        imputation,
+        per_modality_transforms=per_modality_transforms,
+        risk_tertiles=risk_tertiles,
+    )
 
     # --- Plots ---
     _plot_missingness(cohort, all_patients)  # data-dep
@@ -398,7 +419,12 @@ def run_baseline(
     }
 
     if imp_extra:
-        result["imputation_params"] = imp_extra
+        # Strip non-JSON-serializable entries (e.g. fitted sklearn transforms)
+        json_safe = {
+            k: v for k, v in imp_extra.items() if k != "per_modality_transforms"
+        }
+        if json_safe:
+            result["imputation_params"] = json_safe
 
     # Persist RSF best params when tuning was used
     if hasattr(model, "best_params") and model.best_params:
