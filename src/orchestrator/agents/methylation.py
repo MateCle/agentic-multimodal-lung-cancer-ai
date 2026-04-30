@@ -23,6 +23,8 @@ class MethylationAgent(ModalityAgent):
         "methylation patterns in lung adenocarcinoma and squamous cell "
         "carcinoma. You analyse a high-dimensional CpG probe vector "
         "(mostly Illumina 450K / EPIC probe IDs).\n\n"
+        "Treat positive values as hyper-methylation and negative values "
+        "as hypo-methylation.\n\n"
         "You receive only the most prominent probes by absolute value. "
         "Reason about general patterns: hyper- vs hypo-methylation "
         "balance, presence of well-known smoking-related or age-related "
