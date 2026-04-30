@@ -1,117 +1,226 @@
 """
 LangGraph DAG definition for the multimodal lung cancer orchestrator.
-Implements the AFM2-inspired pipeline:
+AFM2-aligned core pipeline:
 
-  DataLoader -> Planner -> Miner -> Generator -> Verifier -> Predictor
-                       |                              ^
-                       | (all modalities present)     | (self-refinement loop)
-                       +------------------------------+-> Predictor
+  DataLoader -> Planner -> Miner (LLM) -> Generator (k-NN) -> Verifier (LLM) -> Predictor
+                       |                                          ^
+                       | (all present)                            | (self-refinement, max 3)
+                       +---> Predictor                            v
+                                                              Generator
+
+Extensions (added after core works):
+    - Modality agents (parallel on multi-GPU)
+    - TCGA MMKG retrieval
+    - SPOKE verification
+    - FAISS GPU acceleration
 """
+
+import logging
+import pickle
 from pathlib import Path
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
-from src.orchestrator.state import PatientState
-from src.orchestrator.nodes import (
-    planner_node,
-    miner_node,
-    generator_node,
-    verifier_node,
-    predictor_node,
-    route_after_planner,
-    route_after_verifier,
+from src.baseline.pipeline import load_pipeline, pipeline_path
+from src.data_loader import load_patient, load_raw_data
+from src.orchestrator.llm import get_llm_client
+from src.orchestrator.nodes.generator import (
+    build_pool_index,
+    make_generator_node,
 )
-from src.data_loader import load_raw_data, load_patient
+from src.orchestrator.nodes.generator import (
+    generator_node as mock_generator,
+)
+
+# Core nodes (real + mock)
+from src.orchestrator.nodes.miner import make_miner_node
+from src.orchestrator.nodes.miner import miner_node as mock_miner
+from src.orchestrator.nodes.planner import planner_node
+from src.orchestrator.nodes.predictor import (
+    make_predictor_node,
+)
+from src.orchestrator.nodes.predictor import (
+    predictor_node as mock_predictor,
+)
+from src.orchestrator.nodes.router import route_after_planner, route_after_verifier
+from src.orchestrator.nodes.verifier import (
+    build_pool_stats,
+    make_verifier_node,
+)
+from src.orchestrator.nodes.verifier import (
+    verifier_node as mock_verifier,
+)
+from src.orchestrator.state import PatientState
+
+logger = logging.getLogger(__name__)
 
 _DATA_LOADER = "data_loader"
-_PLANNER     = "planner"
-_MINER       = "miner"
-_GENERATOR   = "generator"
-_VERIFIER    = "verifier"
-_PREDICTOR   = "predictor"
+_PLANNER = "planner"
+_MINER = "miner"
+_GENERATOR = "generator"
+_VERIFIER = "verifier"
+_PREDICTOR = "predictor"
 
 
-def _make_data_loader_node(all_data: dict):
-    """
-    Returns a data_loader closure over the preloaded cohort dict.
-    PKL files are read once at build_graph() time, not per invocation.
-    """
+def _load_metadata(data_dir: Path) -> dict:
+    """Load feature name metadata from either cohort (columns are shared for transcriptomics)."""
+    for cohort in ("luad", "lusc"):
+        meta_path = data_dir / f"tcga_{cohort}_metadata.pkl"
+        if meta_path.exists():
+            with open(meta_path, "rb") as f:
+                return pickle.load(f)
+    return {}
+
+
+def _make_data_loader_node(all_data: dict, cohort_map: dict):
+    """Returns a data_loader closure."""
+
     def data_loader_node(state: PatientState) -> dict:
-        pid    = state["patient_id"]
+        pid = state["patient_id"]
         record = load_patient(pid, all_data)
 
         if record is None:
-            raise ValueError(
-                f"[DataLoader] Patient '{pid}' not found in cohort data."
-            )
+            raise ValueError(f"[DataLoader] Patient '{pid}' not found.")
 
+        cohort = cohort_map.get(pid, "unknown")
         log = (
-            f"[DataLoader] Loaded {pid}. "
+            f"[DataLoader] Loaded {pid} (cohort={cohort.upper()}). "
             f"Available: {record['available_modalities']}. "
             f"Missing: {record['missing_modalities']}."
         )
         return {
-            "clinical":             record["clinical"],
-            "transcriptomics":      record["transcriptomics"],
-            "wsi":                  record["wsi"],
-            "methylation":          record["methylation"],
+            "cohort": cohort,
+            "clinical": record["clinical"],
+            "transcriptomics": record["transcriptomics"],
+            "wsi": record["wsi"],
+            "methylation": record["methylation"],
             "available_modalities": record["available_modalities"],
-            "missing_modalities":   record["missing_modalities"],
-            "mining_rules":         {},
+            "missing_modalities": record["missing_modalities"],
+            "agent_summaries": {},
+            "mining_rules": {},
             "generated_modalities": {},
-            "verification_scores":  {},
-            "verification_passed":  False,
-            "survival_prediction":  None,
-            "routing_decision":     "",
-            "execution_log":        [log],
+            "verification_scores": {},
+            "verification_passed": False,
+            "survival_prediction": None,
+            "routing_decision": "",
+            "execution_log": [log],
         }
 
     return data_loader_node
 
 
-def build_graph(data_dir: Path):
+def _load_pipelines(model_name: str, imputation: str) -> dict:
+    """Load fitted baseline pipelines for both cohorts."""
+    pipelines = {}
+    for cohort in ("luad", "lusc"):
+        path = pipeline_path(cohort, model_name, imputation)
+        if path.exists():
+            pipelines[cohort] = load_pipeline(cohort, model_name, imputation)
+        else:
+            logger.warning(f"No pipeline for {cohort}/{model_name}/{imputation}.")
+    return pipelines
+
+
+def build_graph(
+    data_dir: Path,
+    model_name: str = "coxph",
+    imputation: str = "zero",
+    train_patient_ids: list[str] | None = None,
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
+):
     """
-    Loads cohort data, builds and compiles the LangGraph StateGraph.
+    Build and compile the LangGraph orchestrator.
+
+    Modes (auto-detected):
+        - Full AFM2: train IDs + LLM → real Miner, Generator (k-NN), Verifier
+        - Mock: no train IDs → all placeholder nodes
 
     Args:
-        data_dir: Path to the cache_data directory (contains .pkl files).
+        data_dir:          Path to cache_data directory.
+        model_name:        Baseline model for the Predictor.
+        imputation:        Imputation strategy the baseline was trained with.
+        train_patient_ids: Patient IDs for the retrieval pool.
+        llm_provider:      Override LLM provider ('openai', 'mock').
+        llm_model:         Override LLM model name.
 
     Returns:
-        A compiled LangGraph runnable ready to be called with .invoke().
+        Compiled LangGraph runnable.
     """
     data_dir = Path(data_dir)
 
+    # --- Load data ---
     luad_data, _ = load_raw_data(data_dir, "luad")
     lusc_data, _ = load_raw_data(data_dir, "lusc")
-    all_data      = {**luad_data, **lusc_data}
+    all_data = {**luad_data, **lusc_data}
 
+    cohort_map = dict.fromkeys(luad_data, "luad")
+    cohort_map.update(dict.fromkeys(lusc_data, "lusc"))
+
+    # --- Load metadata (feature names for Miner prompts) ---
+    metadata = _load_metadata(data_dir)
+
+    # --- Load baseline pipelines ---
+    pipelines = _load_pipelines(model_name, imputation)
+
+    # --- Initialize pool + LLM ---
+    pool = None
+    pool_stats = None
+    llm = None
+
+    if train_patient_ids is not None:
+        pool = build_pool_index(all_data, train_patient_ids)
+        pool_stats = build_pool_stats(pool)
+        llm = get_llm_client(provider=llm_provider, model=llm_model)
+
+        logger.info(
+            f"AFM2 mode: pool={len(pool)} patients, LLM={llm.__class__.__name__}"
+        )
+
+    # --- Build graph ---
     builder = StateGraph(PatientState)
 
-    builder.add_node(_DATA_LOADER, _make_data_loader_node(all_data))
-    builder.add_node(_PLANNER,     planner_node)
-    builder.add_node(_MINER,       miner_node)
-    builder.add_node(_GENERATOR,   generator_node)
-    builder.add_node(_VERIFIER,    verifier_node)
-    builder.add_node(_PREDICTOR,   predictor_node)
+    # DataLoader + Planner (always real)
+    builder.add_node(_DATA_LOADER, _make_data_loader_node(all_data, cohort_map))
+    builder.add_node(_PLANNER, planner_node)
 
+    # Miner: LLM with metadata, or mock
+    if llm is not None:
+        builder.add_node(_MINER, make_miner_node(llm, metadata))
+    else:
+        builder.add_node(_MINER, mock_miner)
+
+    # Generator: LLM-guided k-NN retrieval with pool, or mock
+    if pool is not None:
+        builder.add_node(_GENERATOR, make_generator_node(pool, llm, metadata))
+    else:
+        builder.add_node(_GENERATOR, mock_generator)
+
+    # Verifier: distributional + LLM scoring, or mock
+    if pool_stats is not None and llm is not None:
+        builder.add_node(_VERIFIER, make_verifier_node(pool_stats, llm))
+    else:
+        builder.add_node(_VERIFIER, mock_verifier)
+
+    # Predictor: baseline pipeline, or mock
+    if pipelines:
+        builder.add_node(_PREDICTOR, make_predictor_node(pipelines))
+    else:
+        builder.add_node(_PREDICTOR, mock_predictor)
+
+    # --- Edges ---
     builder.set_entry_point(_DATA_LOADER)
-
     builder.add_edge(_DATA_LOADER, _PLANNER)
 
-    # Planner: missing modalities -> Miner, all present -> Predictor
     builder.add_conditional_edges(
         _PLANNER,
         route_after_planner,
         {_MINER: _MINER, _PREDICTOR: _PREDICTOR},
     )
 
-    # Miner always feeds into Generator
     builder.add_edge(_MINER, _GENERATOR)
-
-    # Generator always feeds into Verifier
     builder.add_edge(_GENERATOR, _VERIFIER)
 
-    # Verifier: pass -> Predictor, fail -> Generator (self-refinement)
     builder.add_conditional_edges(
         _VERIFIER,
         route_after_verifier,
