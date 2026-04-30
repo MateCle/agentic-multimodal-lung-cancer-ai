@@ -153,7 +153,7 @@ The orchestrator uses Qwen2.5-7B-Instruct served via vLLM on AAU's AI-LAB infras
 ### One-time setup
 ```bash
 # SSH into AI-LAB
-ssh <your-id>@ai-lab.aau.dk
+ssh <your-id>@ailab-fe01.srv.aau.dk
 
 # Configure HF token
 echo 'export HF_TOKEN="YOUR_TOKEN_HERE"' >> ~/.bashrc
