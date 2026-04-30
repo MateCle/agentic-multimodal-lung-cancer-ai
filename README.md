@@ -164,7 +164,7 @@ git clone https://github.com/MateCle/agentic-multimodal-lung-cancer-ai.git
 cd agentic-multimodal-lung-cancer-ai
 
 # Upload data from your local machine (run this locally, not on AI-LAB)
-scp -r data/extracted/cache_data <your-id>@ai-lab.aau.dk:~/agentic-multimodal-lung-cancer-ai/data/extracted/
+scp -r data/extracted <your-id>@ailab-fe01.srv.aau.dk:~/agentic-multimodal-lung-cancer-ai/data
 
 # Install Python dependencies (on AI-LAB, inside a GPU job)
 srun --gres=gpu:1 --mem=24G --time=00:10:00 \
