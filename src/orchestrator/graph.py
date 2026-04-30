@@ -26,6 +26,7 @@ from src.data_loader import MODALITY_DIMS, load_patient, load_raw_data
 from src.orchestrator.agents import (
     ClinicalAgent,
     GenomicAgent,
+    LanguageAgent,
     MethylationAgent,
     VisualAgent,
 )
@@ -67,16 +68,120 @@ _MINER = "miner"
 _GENERATOR = "generator"
 _VERIFIER = "verifier"
 _PREDICTOR = "predictor"
+_LANG_PARSER = "language_parser"
+_LANG_REPORTER = "language_reporter"
 
 
-def _load_metadata(data_dir: Path) -> dict:
-    """Load feature name metadata from either cohort (columns are shared for transcriptomics)."""
+def _load_metadata_per_cohort(data_dir: Path) -> dict:
+    """Load feature-name metadata for both cohorts, keyed by cohort."""
+    out: dict = {}
     for cohort in ("luad", "lusc"):
         meta_path = data_dir / f"tcga_{cohort}_metadata.pkl"
         if meta_path.exists():
             with open(meta_path, "rb") as f:
-                return pickle.load(f)
+                out[cohort] = pickle.load(f)
+        else:
+            out[cohort] = {}
+    return out
+
+
+def _load_metadata(data_dir: Path) -> dict:
+    """Backward-compatible: return metadata of the first cohort found.
+
+    Used by the Miner / agent prompts where transcriptomics column names
+    are shared across cohorts.
+    """
+    per_cohort = _load_metadata_per_cohort(data_dir)
+    for cohort in ("luad", "lusc"):
+        if per_cohort.get(cohort):
+            return per_cohort[cohort]
     return {}
+
+
+def _make_language_parser_node(language_agent: LanguageAgent):
+    """Entry node: parse user query into a structured patient ID."""
+
+    def language_parser_node(state: PatientState) -> dict:
+        raw_query = state.get("user_query", "")
+
+        # If the user already provided a patient_id directly (CLI --patient),
+        # skip parsing and use it as-is.
+        existing_pid = state.get("patient_id", "")
+        if existing_pid and not raw_query:
+            return {
+                "parsed_query": {
+                    "patient_id": existing_pid,
+                    "cohort": None,
+                    "raw_query": "",
+                    "error": None,
+                },
+                "execution_log": [
+                    f"[LanguageAgent] Direct ID input: {existing_pid}. "
+                    f"Skipping query parsing."
+                ],
+            }
+
+        parsed = language_agent.parse_query(raw_query)
+
+        log_lines = [
+            f"[LanguageAgent] Query: '{raw_query[:80]}{'...' if len(raw_query) > 80 else ''}'"
+        ]
+        if parsed.error:
+            log_lines.append(f"[LanguageAgent] Parse error: {parsed.error}")
+            return {
+                "parsed_query": parsed.to_dict(),
+                "clinical_report": (
+                    f"# Error\n\n{parsed.error}\n\nOriginal query: `{raw_query}`"
+                ),
+                "execution_log": log_lines,
+            }
+
+        log_lines.append(
+            f"[LanguageAgent] Parsed: patient_id={parsed.patient_id}, "
+            f"cohort={parsed.cohort}"
+        )
+        return {
+            "patient_id": parsed.patient_id,
+            "parsed_query": parsed.to_dict(),
+            "execution_log": log_lines,
+        }
+
+    return language_parser_node
+
+
+def _make_language_reporter_node(language_agent: LanguageAgent):
+    """Exit node: generate the markdown clinical report from final state."""
+
+    def language_reporter_node(state: PatientState) -> dict:
+        # If the parser short-circuited the graph due to a parsing error,
+        # it already set clinical_report to an error message. Don't overwrite.
+        existing = state.get("clinical_report", "")
+        parse_failed = bool(state.get("parsed_query", {}).get("error"))
+        if parse_failed and existing:
+            return {
+                "execution_log": [
+                    "[LanguageAgent] Parse-error report preserved; "
+                    "skipping full report generation."
+                ],
+            }
+
+        report = language_agent.generate_report(state)
+        return {
+            "clinical_report": report,
+            "execution_log": [
+                f"[LanguageAgent] Generated clinical report ({len(report)} chars)."
+            ],
+        }
+
+    return language_reporter_node
+
+
+def route_after_language_parser(state: PatientState) -> str:
+    """Skip the rest of the graph if parsing failed."""
+    parsed = state.get("parsed_query", {})
+    if parsed.get("error") or not parsed.get("patient_id"):
+        return _LANG_REPORTER  # straight to exit, will report the error
+    return _DATA_LOADER
 
 
 def _make_data_loader_node(all_data: dict, cohort_map: dict):
@@ -109,6 +214,10 @@ def _make_data_loader_node(all_data: dict, cohort_map: dict):
             "verification_scores": {},
             "verification_passed": False,
             "survival_prediction": None,
+            "risk_class": "",
+            "top_shap_features": [],
+            "source_map": {},
+            "clinical_report": "",
             "routing_decision": "",
             "execution_log": [log],
         }
@@ -130,8 +239,8 @@ def _load_pipelines(model_name: str, imputation: str) -> dict:
 
 def build_graph(
     data_dir: Path,
-    model_name: str = "coxph",
-    imputation: str = "zero",
+    model_name: str = "coxnet",
+    imputation: str = "mice",
     train_patient_ids: list[str] | None = None,
     llm_provider: str | None = None,
     llm_model: str | None = None,
@@ -166,6 +275,7 @@ def build_graph(
 
     # --- Load metadata (feature names for Miner prompts) ---
     metadata = _load_metadata(data_dir)
+    metadata_per_cohort = _load_metadata_per_cohort(data_dir)
 
     # --- Load baseline pipelines ---
     pipelines = _load_pipelines(model_name, imputation)
@@ -190,6 +300,11 @@ def build_graph(
 
     # --- Build graph ---
     builder = StateGraph(PatientState)
+
+    # LanguageAgent: entry (parse query) + exit (generate report)
+    language_agent = LanguageAgent(llm)
+    builder.add_node(_LANG_PARSER, _make_language_parser_node(language_agent))
+    builder.add_node(_LANG_REPORTER, _make_language_reporter_node(language_agent))
 
     # DataLoader + Planner (always real)
     builder.add_node(_DATA_LOADER, _make_data_loader_node(all_data, cohort_map))
@@ -227,14 +342,25 @@ def build_graph(
     else:
         builder.add_node(_VERIFIER, mock_verifier)
 
-    # Predictor: baseline pipeline, or mock
+    # Predictor: baseline pipeline + per-cohort metadata for SHAP, or mock
     if pipelines:
-        builder.add_node(_PREDICTOR, make_predictor_node(pipelines))
+        builder.add_node(
+            _PREDICTOR,
+            make_predictor_node(pipelines, metadata_per_cohort),
+        )
     else:
         builder.add_node(_PREDICTOR, mock_predictor)
 
     # --- Edges ---
-    builder.set_entry_point(_DATA_LOADER)
+    builder.set_entry_point(_LANG_PARSER)
+
+    # LanguageAgent parser -> DataLoader (or straight to reporter on error)
+    builder.add_conditional_edges(
+        _LANG_PARSER,
+        route_after_language_parser,
+        {_DATA_LOADER: _DATA_LOADER, _LANG_REPORTER: _LANG_REPORTER},
+    )
+
     builder.add_edge(_DATA_LOADER, _PLANNER)
 
     builder.add_conditional_edges(
@@ -252,6 +378,8 @@ def build_graph(
         {_PREDICTOR: _PREDICTOR, _GENERATOR: _GENERATOR},
     )
 
-    builder.add_edge(_PREDICTOR, END)
+    # Predictor -> LanguageAgent reporter (exit)
+    builder.add_edge(_PREDICTOR, _LANG_REPORTER)
+    builder.add_edge(_LANG_REPORTER, END)
 
     return builder.compile()
