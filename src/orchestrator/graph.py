@@ -216,6 +216,7 @@ def _make_data_loader_node(all_data: dict, cohort_map: dict):
             "survival_prediction": None,
             "risk_class": "",
             "top_shap_features": [],
+            "shap_feature_details": [],
             "source_map": {},
             "clinical_report": "",
             "routing_decision": "",
@@ -346,7 +347,11 @@ def build_graph(
     if pipelines:
         builder.add_node(
             _PREDICTOR,
-            make_predictor_node(pipelines, metadata_per_cohort),
+            make_predictor_node(
+                pipelines,
+                metadata_per_cohort,
+                clinical_column_types=clinical_column_types,
+            ),
         )
     else:
         builder.add_node(_PREDICTOR, mock_predictor)
