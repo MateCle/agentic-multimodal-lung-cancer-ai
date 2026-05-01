@@ -80,7 +80,10 @@ class ClinicalAgent(ModalityAgent):
         "Categorical fields are one-hot encoded (0/1 or -1/1; -1 means "
         "not present). Continuous numeric fields are z-scores: negative "
         "means below the cohort mean, positive above, and zero is the "
-        "cohort mean. Do not treat negative z-scores as absence.\n\n"
+        "cohort mean. Do not treat negative z-scores as absence. Do NOT "
+        "convert z-scores into real units (e.g., years, pack-years) or "
+        "claim heavy/light exposure unless explicitly encoded as a "
+        "categorical feature. Use above/below-average phrasing instead.\n\n"
         "Respond ONLY in JSON with this schema:\n"
         '{"summary": "<3-5 line narrative>", '
         '"key_features": ["<feature name as given>", ...], '
@@ -148,6 +151,9 @@ class ClinicalAgent(ModalityAgent):
         return (
             "Active clinical fields for this patient:\n\n"
             f"{bullet_block}\n\n"
+            "Interpretation guidance: continuous values are z-scores; "
+            "describe them as above/below cohort average and avoid "
+            "absolute units (years, cigarettes/day).\n\n"
             "Summarise this profile, identify the strongest prognostic signals, "
             "and list 4-8 of the field names above under `key_features` "
             "(copy the names exactly). Flag any clinically expected but "
