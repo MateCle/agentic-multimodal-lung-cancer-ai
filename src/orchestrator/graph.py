@@ -351,6 +351,7 @@ def build_graph(
                 pipelines,
                 metadata_per_cohort,
                 clinical_column_types=clinical_column_types,
+                pool=pool,
             ),
         )
     else:

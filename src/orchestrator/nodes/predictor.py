@@ -262,6 +262,55 @@ def _build_shap_details(
     return details
 
 
+def _filter_rare_one_hot(
+    top_features: list[tuple[str, float]],
+    pool: list[dict],
+    metadata: dict,
+    min_prevalence: float = 0.05,
+) -> list[tuple[str, float]]:
+    """
+    Drop one-hot features that are active in < min_prevalence fraction of
+    the training pool. These tend to dominate back-projected SHAP due to
+    high PCA loadings on sparse columns, and produce confusing reports
+    (e.g., 'the disease type is not present' for a rare subtype).
+    """
+    if not pool or not metadata:
+        return top_features
+
+    # Build name -> column index map for clinical (where one-hot live)
+    clinical_cols = metadata.get("clinical_columns", [])
+    if not clinical_cols:
+        return top_features
+
+    name_to_idx = {n: i for i, n in enumerate(clinical_cols)}
+    n_pool = len(pool)
+
+    filtered = []
+    for name, imp in top_features:
+        idx = name_to_idx.get(name)
+        if idx is None:
+            # Not a clinical feature — keep (transcriptomics/methylation/wsi)
+            filtered.append((name, imp))
+            continue
+
+        # Count how many pool patients have this feature = 1
+        n_active = 0
+        for entry in pool:
+            clinical = entry.get("features", {}).get("clinical")
+            if clinical is None:
+                continue
+            arr = np.asarray(clinical, dtype=np.float32).flatten()
+            if idx < arr.size and abs(arr[idx] - 1.0) < 1e-6:
+                n_active += 1
+
+        prevalence = n_active / n_pool if n_pool > 0 else 0.0
+        if prevalence >= min_prevalence:
+            filtered.append((name, imp))
+        # else: skip — feature too rare to be meaningfully ranked
+
+    return filtered
+
+
 def _append_missing_pipeline_log(
     log_lines: list[str], cohort: str, available: list[str]
 ) -> None:
@@ -312,6 +361,7 @@ def make_predictor_node(
     pipelines: dict,
     metadata_by_cohort: dict | None = None,
     clinical_column_types: list[str] | None = None,
+    pool=None,
 ):
     """
     Build the Predictor LangGraph node.
@@ -363,7 +413,7 @@ def make_predictor_node(
         try:
             metadata = metadata_by_cohort.get(cohort, {})
             background = _get_background_pca(pipeline)
-            top_features = compute_shap_for_patient(
+            top_candidates = compute_shap_for_patient(
                 model=pipeline.model,
                 model_name=pipeline.model_name,
                 x_pca=x_pca,
@@ -372,7 +422,9 @@ def make_predictor_node(
                 metadata=metadata,
                 per_modality_transforms=pipeline.per_modality_transforms,
                 n_top=10,
+                n_candidates=30,
             )
+            top_features = _filter_rare_one_hot(top_candidates, pool, metadata)[:10]
             if top_features:
                 log_lines.append(
                     f"[Predictor] Top SHAP feature: "
