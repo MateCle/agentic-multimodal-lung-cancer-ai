@@ -80,10 +80,14 @@ class ClinicalAgent(ModalityAgent):
         "Categorical fields are one-hot encoded (0/1 or -1/1; -1 means "
         "not present). Continuous numeric fields are z-scores: negative "
         "means below the cohort mean, positive above, and zero is the "
-        "cohort mean. Do not treat negative z-scores as absence. Do NOT "
-        "convert z-scores into real units (e.g., years, pack-years) or "
-        "claim heavy/light exposure unless explicitly encoded as a "
-        "categorical feature. Use above/below-average phrasing instead.\n\n"
+        "cohort mean. Do not treat negative z-scores as absence."
+        "For continuous features (z-scores), describe them strictly as one of: "
+        "'slightly above average' (z between 0.1 and 0.5), 'above average' (z "
+        "between 0.5 and 1.5), 'well above average' (z > 1.5), and the "
+        "corresponding 'below average' phrasings for negative z-scores. Use "
+        "'near average' for |z| < 0.1. Do NOT use absolute clinical terms like "
+        "'heavy', 'light', 'minimal', 'severe', or convert z-scores into "
+        "absolute units (years, pack-years).\n\n"
         "Respond ONLY in JSON with this schema:\n"
         '{"summary": "<3-5 line narrative>", '
         '"key_features": ["<feature name as given>", ...], '
