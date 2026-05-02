@@ -467,8 +467,9 @@ class LanguageAgent:
 
     def _format_feature_label(self, detail: dict) -> str:
         raw = str(detail.get("name", ""))
-        display = self._humanize_feature_name(raw)
-        return f"{display} ({raw})" if display != raw else raw
+        # display = self._humanize_feature_name(raw)
+        # return f"{display} ({raw})" if display != raw else raw
+        return raw
 
     def _format_shap_feature_lines(self, shap_details: list) -> list[str]:
         lines = []
