@@ -148,7 +148,12 @@ class MockLLMClient(BaseLLMClient):
 class OpenAIClient(BaseLLMClient):
     """OpenAI API client (GPT-4o, GPT-4o-mini, etc.)."""
 
-    def __init__(self, model: str = "gpt-4o", api_key: str | None = None):
+    def __init__(
+        self,
+        model: str = "gpt-4o",
+        api_key: str | None = None,
+        temperature: float = 0.3,
+    ):
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
@@ -175,7 +180,7 @@ class OpenAIClient(BaseLLMClient):
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
-            temperature=0.3,
+            temperature=self.temperature,
             max_tokens=2000,
         )
 
@@ -209,10 +214,14 @@ class AnthropicClient(BaseLLMClient):
     """Anthropic API client (Claude Sonnet, etc.)."""
 
     def __init__(
-        self, model: str = "claude-sonnet-4-20250514", api_key: str | None = None
+        self,
+        model: str = "claude-sonnet-4-20250514",
+        api_key: str | None = None,
+        temperature: float = 0.3,
     ):
         self.model = model
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        self.temperature = temperature
         if not self.api_key:
             raise ValueError(
                 "Anthropic API key not found. Set ANTHROPIC_API_KEY environment variable."
@@ -228,6 +237,7 @@ class AnthropicClient(BaseLLMClient):
         kwargs = {
             "model": self.model,
             "max_tokens": 2000,
+            "temperature": self.temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
         if system:
@@ -279,6 +289,7 @@ _PROVIDERS = {
 def get_llm_client(
     provider: str | None = None,
     model: str | None = None,
+    temperature: float = 0.3,
 ) -> BaseLLMClient:
     """
     Create an LLM client based on environment configuration.
@@ -318,4 +329,4 @@ def get_llm_client(
         )
 
     logger.info(f"LLM client: provider={provider}, model={model}")
-    return client_cls(model=model)
+    return client_cls(model=model, temperature=temperature)

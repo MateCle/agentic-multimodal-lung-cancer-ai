@@ -285,6 +285,7 @@ def build_graph(
     pool = None
     pool_stats = None
     llm = None
+    verifier_llm = None
     clinical_column_types: list[str] = []
 
     if train_patient_ids is not None:
@@ -294,6 +295,10 @@ def build_graph(
             pool, MODALITY_DIMS["clinical"]
         )
         llm = get_llm_client(provider=llm_provider, model=llm_model)
+
+        verifier_llm = get_llm_client(
+            provider=llm_provider, model=llm_model, temperature=0.0
+        )
 
         logger.info(
             f"AFM2 mode: pool={len(pool)} patients, LLM={llm.__class__.__name__}"
@@ -338,8 +343,8 @@ def build_graph(
         builder.add_node(_GENERATOR, mock_generator)
 
     # Verifier: distributional + LLM scoring, or mock
-    if pool_stats is not None and llm is not None:
-        builder.add_node(_VERIFIER, make_verifier_node(pool_stats, llm))
+    if pool_stats is not None and verifier_llm is not None:
+        builder.add_node(_VERIFIER, make_verifier_node(pool_stats, verifier_llm))
     else:
         builder.add_node(_VERIFIER, mock_verifier)
 
