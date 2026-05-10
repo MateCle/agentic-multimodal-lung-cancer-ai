@@ -1,6 +1,12 @@
 """
-Unit tests for the real distributional + LLM Verifier node.
+Unit tests for the real distributional + LLM Verifier nodes.
 Uses synthetic data — no TCGA files or LLM API required.
+
+Covers:
+  - Pool statistics
+  - Distributional check
+  - Post-Verifier (make_verifier_node): backward-compat + best-of-N ranking
+  - Pre-Verifier (make_pre_verifier_node): guidance refinement
 """
 
 import numpy as np
@@ -11,6 +17,7 @@ from src.orchestrator.llm import MockLLMClient
 from src.orchestrator.nodes.verifier import (
     _check_distributional,
     build_pool_stats,
+    make_pre_verifier_node,
     make_verifier_node,
 )
 from src.orchestrator.state import PatientState
@@ -182,3 +189,270 @@ class TestMakeVerifierNode:
         state = _make_state(generated_modalities={})
         result = verify_fn(state)
         assert result["verification_passed"] is True
+
+    def test_promotes_best_candidate_to_generated_modalities(self, pool_stats):
+        """Verifier must promote the winning candidate to generated_modalities."""
+        llm = MockLLMClient()
+        verify_fn = make_verifier_node(pool_stats, llm)
+
+        cand_a = pool_stats["transcriptomics"]["mean"].copy()
+        cand_b = pool_stats["transcriptomics"]["mean"].copy() + 0.1
+        state = PatientState(
+            patient_id="TCGA-VQUERY-0002",
+            cohort="luad",
+            clinical=np.zeros(MODALITY_DIMS["clinical"]),
+            transcriptomics=None,
+            wsi=None,
+            methylation=None,
+            available_modalities=["clinical"],
+            missing_modalities=["transcriptomics"],
+            agent_summaries={},
+            mining_rules={},
+            guidance={},
+            generation_candidates={"transcriptomics": [cand_a, cand_b]},
+            generated_modalities={},
+            verification_scores={},
+            verification_passed=False,
+            survival_prediction=None,
+            routing_decision="generate",
+            execution_log=[],
+            correction_hints={},
+        )
+        result = verify_fn(state)
+        assert "transcriptomics" in result["generated_modalities"]
+        assert result["generated_modalities"]["transcriptomics"].shape == (
+            MODALITY_DIMS["transcriptomics"],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Best-of-N ranking tests (post-Verifier)
+# ---------------------------------------------------------------------------
+
+
+class _SequentialMockLLM(MockLLMClient):
+    """LLM that cycles through a fixed list of JSON responses."""
+
+    def __init__(self, responses: list[dict]):
+        super().__init__()
+        self._responses = responses
+        self._call_idx = 0
+
+    def invoke_json(self, prompt: str, system: str = "") -> dict:
+        resp = self._responses[self._call_idx % len(self._responses)]
+        self._call_idx += 1
+        return resp
+
+
+def _make_criteria_response(overall: float, feedback: str = "") -> dict:
+    return {
+        "distributional_plausibility": overall,
+        "biological_consistency": overall,
+        "cross_modal_coherence": overall,
+        "clinical_relevance": overall,
+        "pathway_consistency": overall,
+        "hallucination_risk": overall,
+        "overall_score": overall,
+        "feedback": feedback,
+    }
+
+
+class TestBestOfNVerifier:
+    @pytest.fixture
+    def pool_stats(self):
+        pool = _build_synthetic_pool(20)
+        return build_pool_stats(pool)
+
+    def test_selects_highest_scoring_candidate(self, pool_stats):
+        """When candidate 1 scores higher than candidate 0, it must be chosen."""
+        low_resp = _make_criteria_response(1.0, "poor reconstruction")
+        high_resp = _make_criteria_response(5.0)
+        # Candidate 0 → low score, candidate 1 → high score
+        llm = _SequentialMockLLM([low_resp, high_resp])
+        verify_fn = make_verifier_node(pool_stats, llm)
+
+        cand_low = np.zeros(MODALITY_DIMS["transcriptomics"], dtype=np.float32)
+        cand_high = pool_stats["transcriptomics"]["mean"].copy()
+
+        state = PatientState(
+            patient_id="TCGA-VQUERY-BON-0001",
+            cohort="luad",
+            clinical=np.zeros(MODALITY_DIMS["clinical"]),
+            transcriptomics=None,
+            wsi=None,
+            methylation=None,
+            available_modalities=["clinical"],
+            missing_modalities=["transcriptomics"],
+            agent_summaries={},
+            mining_rules={"transcriptomics": "test rule"},
+            guidance={},
+            generation_candidates={"transcriptomics": [cand_low, cand_high]},
+            generated_modalities={},
+            verification_scores={},
+            verification_passed=False,
+            survival_prediction=None,
+            routing_decision="generate",
+            execution_log=[],
+            correction_hints={},
+        )
+        result = verify_fn(state)
+        # Score from high_resp (5.0) should win
+        assert result["verification_scores"]["transcriptomics"] == pytest.approx(5.0)
+        # Promoted candidate should be cand_high
+        np.testing.assert_array_equal(
+            result["generated_modalities"]["transcriptomics"], cand_high
+        )
+
+    def test_n1_backward_compat_single_candidate(self, pool_stats):
+        """N=1 path: result must still be promoted to generated_modalities."""
+        llm = MockLLMClient()
+        verify_fn = make_verifier_node(pool_stats, llm)
+
+        arr = pool_stats["transcriptomics"]["mean"].copy()
+        state = PatientState(
+            patient_id="TCGA-VQUERY-BON-0002",
+            cohort="luad",
+            clinical=np.zeros(MODALITY_DIMS["clinical"]),
+            transcriptomics=None,
+            wsi=None,
+            methylation=None,
+            available_modalities=["clinical"],
+            missing_modalities=["transcriptomics"],
+            agent_summaries={},
+            mining_rules={},
+            guidance={},
+            generation_candidates={"transcriptomics": [arr]},
+            generated_modalities={},
+            verification_scores={},
+            verification_passed=False,
+            survival_prediction=None,
+            routing_decision="generate",
+            execution_log=[],
+            correction_hints={},
+        )
+        result = verify_fn(state)
+        assert "transcriptomics" in result["generated_modalities"]
+
+    def test_log_mentions_candidate_count_for_n_gt_1(self, pool_stats):
+        llm = MockLLMClient()
+        verify_fn = make_verifier_node(pool_stats, llm)
+
+        arr = pool_stats["transcriptomics"]["mean"].copy()
+        state = PatientState(
+            patient_id="TCGA-VQUERY-BON-0003",
+            cohort="luad",
+            clinical=np.zeros(MODALITY_DIMS["clinical"]),
+            transcriptomics=None,
+            wsi=None,
+            methylation=None,
+            available_modalities=["clinical"],
+            missing_modalities=["transcriptomics"],
+            agent_summaries={},
+            mining_rules={},
+            guidance={},
+            generation_candidates={"transcriptomics": [arr, arr + 0.1, arr + 0.2]},
+            generated_modalities={},
+            verification_scores={},
+            verification_passed=False,
+            survival_prediction=None,
+            routing_decision="generate",
+            execution_log=[],
+            correction_hints={},
+        )
+        result = verify_fn(state)
+        log = " ".join(result["execution_log"])
+        assert "candidate" in log
+
+
+# ---------------------------------------------------------------------------
+# Pre-Verifier guidance refinement tests
+# ---------------------------------------------------------------------------
+
+
+class TestPreVerifierNode:
+    @pytest.fixture
+    def pool_stats(self):
+        pool = _build_synthetic_pool(20)
+        return build_pool_stats(pool)
+
+    def _make_pre_state(self, mining_rules: dict, missing: list[str]):
+        return PatientState(
+            patient_id="TCGA-VQUERY-PRE-0001",
+            cohort="luad",
+            clinical=np.zeros(MODALITY_DIMS["clinical"]),
+            transcriptomics=None,
+            wsi=None,
+            methylation=None,
+            available_modalities=["clinical"],
+            missing_modalities=missing,
+            agent_summaries={},
+            mining_rules=mining_rules,
+            guidance={},
+            generation_candidates={},
+            generated_modalities={},
+            verification_scores={},
+            verification_passed=False,
+            survival_prediction=None,
+            routing_decision="generate",
+            source_map={},
+            execution_log=[],
+            correction_hints={},
+        )
+
+    def test_produces_guidance_for_each_missing_modality(self, pool_stats):
+        llm = MockLLMClient()
+        pre_fn = make_pre_verifier_node(llm)
+        state = self._make_pre_state(
+            mining_rules={"transcriptomics": "use smoking history"},
+            missing=["transcriptomics"],
+        )
+        result = pre_fn(state)
+        assert "transcriptomics" in result["guidance"]
+        assert isinstance(result["guidance"]["transcriptomics"], str)
+        assert len(result["guidance"]["transcriptomics"]) > 0
+
+    def test_guidance_persisted_in_source_map(self, pool_stats):
+        llm = MockLLMClient()
+        pre_fn = make_pre_verifier_node(llm)
+        state = self._make_pre_state(
+            mining_rules={"transcriptomics": "raw rule"},
+            missing=["transcriptomics"],
+        )
+        result = pre_fn(state)
+        assert "mining_rules" in result["source_map"]
+        assert "guidance" in result["source_map"]
+
+    def test_falls_back_to_raw_rules_on_llm_failure(self, pool_stats):
+        """If LLM returns malformed JSON, guidance falls back to raw mining rule."""
+
+        class _FailingLLM(MockLLMClient):
+            def invoke_json(self, prompt: str, system: str = "") -> dict:
+                return {"unexpected_key": "no guidance here"}
+
+        pre_fn = make_pre_verifier_node(_FailingLLM())
+        raw_rule = "use age and smoking history as proxies"
+        state = self._make_pre_state(
+            mining_rules={"methylation": raw_rule},
+            missing=["methylation"],
+        )
+        result = pre_fn(state)
+        # Must still have an entry; content is the raw rule as fallback
+        assert "methylation" in result["guidance"]
+        assert result["guidance"]["methylation"] == raw_rule
+
+    def test_no_missing_returns_empty_guidance(self, pool_stats):
+        llm = MockLLMClient()
+        pre_fn = make_pre_verifier_node(llm)
+        state = self._make_pre_state(mining_rules={}, missing=[])
+        result = pre_fn(state)
+        assert result["guidance"] == {}
+
+    def test_execution_log_contains_pre_verifier_tag(self, pool_stats):
+        llm = MockLLMClient()
+        pre_fn = make_pre_verifier_node(llm)
+        state = self._make_pre_state(
+            mining_rules={"wsi": "use staging info"},
+            missing=["wsi"],
+        )
+        result = pre_fn(state)
+        assert any("[Verifier-pre]" in line for line in result["execution_log"])
