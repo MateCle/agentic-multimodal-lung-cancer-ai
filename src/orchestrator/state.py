@@ -49,6 +49,15 @@ class PatientState(TypedDict):
     # Final survival prediction output
     survival_prediction: Optional[float]
 
+    # --- Predictor outputs ---
+    # Risk class derived from training tertiles ('low' | 'medium' | 'high' | 'unknown').
+    risk_class: str
+    # Top-K SHAP features for this patient: list of (feature_name, abs_importance).
+    top_shap_features: list
+    # Per-modality data provenance: real / generated / zero, with metadata.
+    # Consumed by the Language Agent for the clinical report's caveats section.
+    source_map: dict
+
     # Execution metadata
     routing_decision: str
 
