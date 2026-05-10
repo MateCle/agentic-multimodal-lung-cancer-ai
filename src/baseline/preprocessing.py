@@ -30,19 +30,48 @@ IMPUTATION_STRATEGIES = ["zero", "knn", "knn_tuned", "mice"]
 
 
 # ---------------------------------------------------------------------------
+# Cohort-specific dimension detection
+# ---------------------------------------------------------------------------
+
+
+def detect_actual_dims(patients: list[dict]) -> dict[str, int]:
+    """
+    Detect actual per-modality feature dimensions from the patient data.
+
+    TCGA cohorts differ: LUAD methylation = 16166 probes, LUSC = 16206.
+    Using the global MODALITY_DIMS constant for validation silently drops
+    all LUSC methylation as NaN inside _impute_mice.
+    This function scans the first available patient per modality and returns
+    the real sizes, falling back to MODALITY_DIMS when a modality is absent.
+    """
+    dims = dict(MODALITY_DIMS)
+    for mod in MODALITY_KEYS:
+        for p in patients:
+            val = p.get(mod)
+            if val is not None:
+                arr = np.array(val).flatten()
+                if arr.size > 0:
+                    dims[mod] = int(arr.size)
+                    break
+    return dims
+
+
+# ---------------------------------------------------------------------------
 # Feature extraction (strategy-agnostic)
 # ---------------------------------------------------------------------------
 
 
-def _concat_features(patient: dict) -> np.ndarray:
+def _concat_features(patient: dict, dims: dict[str, int]) -> np.ndarray:
     """
     Concatenate all modality features into a single flat vector.
     Missing modalities are filled with NaN so that any imputation
     strategy can be applied downstream on the full matrix.
+    Uses caller-supplied dims (from detect_actual_dims) to handle
+    cohort-specific array sizes without rejecting valid data.
     """
     vectors = []
     for modality in MODALITY_KEYS:
-        expected_dim = MODALITY_DIMS[modality]
+        expected_dim = dims[modality]
         val = patient.get(modality)
 
         if val is not None:
@@ -59,10 +88,18 @@ def _concat_features(patient: dict) -> np.ndarray:
 
 def build_feature_matrix(
     patients: list[dict],
+    actual_dims: dict[str, int] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Build feature matrix X (with NaN for missing modalities),
     structured survival labels y, and a boolean completeness mask.
+
+    Args:
+        patients:    List of patient dicts from load_split_patients().
+        actual_dims: Per-modality feature sizes for this cohort.
+                     If None, detected automatically via detect_actual_dims().
+                     Always pass the value derived from training patients so
+                     val/test matrices use the identical column layout.
 
     Returns:
         X:           (n_patients, n_features) with NaN for missing modalities.
@@ -70,6 +107,9 @@ def build_feature_matrix(
                      compatible with scikit-survival.
         is_complete: Boolean array, True if all modalities are present.
     """
+    if actual_dims is None:
+        actual_dims = detect_actual_dims(patients)
+
     X, y_list, is_complete = [], [], []
 
     for p in patients:
@@ -84,7 +124,7 @@ def build_feature_matrix(
         if time <= 0:
             continue
 
-        X.append(_concat_features(p))
+        X.append(_concat_features(p, actual_dims))
         y_list.append((bool(event), float(time)))
 
         missing = [m for m in MODALITY_KEYS if p.get(m) is None]
@@ -99,12 +139,12 @@ def build_feature_matrix(
 # ---------------------------------------------------------------------------
 
 
-def _modality_ranges() -> dict[str, tuple[int, int]]:
+def _modality_ranges(dims: dict[str, int]) -> dict[str, tuple[int, int]]:
     """Return the column index range (start, end) for each modality."""
     ranges = {}
     offset = 0
     for mod in MODALITY_KEYS:
-        dim = MODALITY_DIMS[mod]
+        dim = dims[mod]
         ranges[mod] = (offset, offset + dim)
         offset += dim
     return ranges
@@ -232,6 +272,7 @@ def _impute_mice(
     n_components_per_modality: int = 150,
     max_iter: int = 10,
     random_state: int = 42,
+    actual_dims: dict[str, int] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
     """
     MICE imputation with per-modality PCA reduction for scalability.
@@ -245,7 +286,7 @@ def _impute_mice(
     The per-modality PCA is fitted only on training patients who have
     that modality, avoiding any information from missing values.
     """
-    ranges = _modality_ranges()
+    ranges = _modality_ranges(actual_dims or MODALITY_DIMS)
 
     reduced_splits = {"train": [], "val": [], "test": []}
     per_modality_transforms: dict = {}  # mod -> (scaler, pca), only for non-skipped
@@ -330,17 +371,21 @@ def apply_imputation(
     X_val: np.ndarray,
     X_test: np.ndarray,
     y_train: np.ndarray = None,
+    actual_dims: dict[str, int] | None = None,
 ) -> tuple[tuple[np.ndarray, np.ndarray, np.ndarray], dict]:
     """
     Apply the selected imputation strategy.
 
     Args:
-        strategy:  One of 'zero', 'knn', 'knn_tuned', 'mice'.
-        X_train:   Training feature matrix (with NaN for missing modalities).
-        X_val:     Validation feature matrix.
-        X_test:    Test feature matrix.
-        y_train:   Structured survival labels for train set.
-                   Required only for 'knn_tuned' (used in CV scoring).
+        strategy:    One of 'zero', 'knn', 'knn_tuned', 'mice'.
+        X_train:     Training feature matrix (with NaN for missing modalities).
+        X_val:       Validation feature matrix.
+        X_test:      Test feature matrix.
+        y_train:     Structured survival labels for train set.
+                     Required only for 'knn_tuned' (used in CV scoring).
+        actual_dims: Per-modality feature sizes returned by detect_actual_dims().
+                     Required for 'mice' when the cohort's methylation dim differs
+                     from the global MODALITY_DIMS constant (e.g. LUSC = 16206).
 
     Returns:
         (X_train_imp, X_val_imp, X_test_imp): Imputed feature matrices.
@@ -364,7 +409,9 @@ def apply_imputation(
         return (X_tr, X_va, X_te), params
 
     elif strategy == "mice":
-        X_tr, X_va, X_te, transforms = _impute_mice(X_train, X_val, X_test)
+        X_tr, X_va, X_te, transforms = _impute_mice(
+            X_train, X_val, X_test, actual_dims=actual_dims
+        )
         return (X_tr, X_va, X_te), {"per_modality_transforms": transforms}
 
     else:
