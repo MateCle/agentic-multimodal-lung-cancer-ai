@@ -58,6 +58,15 @@ class PatientState(TypedDict):
     # Consumed by the Language Agent for the clinical report's caveats section.
     source_map: dict
 
+    # --- Language Agent I/O ---
+    # Free-text query from the user (set by run.py CLI from --query).
+    user_query: str
+    # Structured parse of user_query: {"patient_id": str, "cohort": str|None}.
+    # Populated by the LanguageAgent entry node.
+    parsed_query: dict
+    # Final markdown clinical report. Populated by the LanguageAgent exit node.
+    clinical_report: str
+
     # Execution metadata
     routing_decision: str
 
