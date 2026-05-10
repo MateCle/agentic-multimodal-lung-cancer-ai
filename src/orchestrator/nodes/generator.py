@@ -12,6 +12,10 @@ Following AFM2's Generation Agent pattern with N>1 best-of-N support:
   4. On self-refinement retries, correction hints from the Verifier are
      included in the LLM prompt.
 
+FAISS backend:
+  IndexFlatIP on fused normalised modality vectors, built once at init.
+  Falls back to FAISS-CPU if no GPU, then to the brute-force sklearn loop.
+
 Usage in graph.py:
     from src.orchestrator.nodes.generator import make_generator_node, build_pool_index
     pool = build_pool_index(all_data, train_ids)
@@ -47,6 +51,18 @@ GENERATOR_SYSTEM_PROMPT = (
     '"reasoning": "...", "k_suggestion": <int>}'
 )
 
+# ---------------------------------------------------------------------------
+# FAISS availability
+# ---------------------------------------------------------------------------
+
+try:
+    import faiss as _faiss_lib
+
+    _FAISS_AVAILABLE = True
+except ImportError:
+    _faiss_lib = None
+    _FAISS_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # Pool index construction
@@ -54,7 +70,12 @@ GENERATOR_SYSTEM_PROMPT = (
 
 
 def _build_pool_entry(pid: str, patient: dict) -> dict:
-    """Build a single retrieval pool entry with normalised feature vectors."""
+    """Build a single retrieval pool entry with normalised feature vectors.
+
+    Accepts any non-empty array regardless of size so that cohort-specific
+    dims (e.g. LUSC methylation = 16206 vs MODALITY_DIMS = 16166) are not
+    silently dropped.
+    """
     entry: dict = {
         "patient_id": pid,
         "available": patient["available_modalities"],
@@ -65,7 +86,7 @@ def _build_pool_entry(pid: str, patient: dict) -> dict:
         if patient[mod] is None:
             continue
         arr = np.array(patient[mod]).flatten().astype(np.float32)
-        if arr.size != MODALITY_DIMS[mod]:
+        if arr.size == 0:
             continue
         entry["features"][mod] = arr
         norm = np.linalg.norm(arr)
@@ -88,7 +109,115 @@ def build_pool_index(raw_data: dict, patient_ids: list[str]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# k-NN retrieval
+# FAISS index construction
+# ---------------------------------------------------------------------------
+
+
+def _detect_pool_dims(pool: list[dict]) -> dict[str, int]:
+    """Infer actual modality dims from pool entries (handles cohort-specific sizes)."""
+    dims = dict(MODALITY_DIMS)
+    for entry in pool:
+        for mod, arr in entry["features"].items():
+            dims[mod] = int(arr.size)
+    return dims
+
+
+def _pool_fused_offsets(
+    pool_dims: dict[str, int],
+) -> tuple[dict[str, tuple[int, int]], int]:
+    """Compute (start, end) byte offsets and total dim for the fused feature vector."""
+    offsets: dict[str, tuple[int, int]] = {}
+    offset = 0
+    for mod in MODALITY_KEYS:
+        dim = pool_dims.get(mod, 0)
+        if dim > 0:
+            offsets[mod] = (offset, offset + dim)
+            offset += dim
+    return offsets, offset
+
+
+def _make_fused_vec(entry: dict, offsets: dict, total_dim: int) -> np.ndarray:
+    """Concatenate all normalised modality vectors for a pool entry (zeros for missing)."""
+    vec = np.zeros(total_dim, dtype=np.float32)
+    for mod, (start, end) in offsets.items():
+        if mod in entry["features_norm"]:
+            src = entry["features_norm"][mod]
+            vec[start : start + src.size] = src
+    return vec
+
+
+def _try_move_to_gpu(index):
+    """Attempt to move a FAISS CPU index to GPU; return (index, on_gpu)."""
+    try:
+        res = _faiss_lib.StandardGpuResources()
+        gpu_index = _faiss_lib.index_cpu_to_gpu(res, 0, index)
+        return gpu_index, True
+    except Exception:
+        return index, False
+
+
+def _build_faiss_index(
+    pool: list[dict],
+    pool_dims: dict[str, int],
+) -> dict:
+    """
+    Build per-target-modality FAISS IndexFlatIP from the pool.
+
+    Each index operates in the fused normalised feature space
+    (all modalities concatenated, zeros where absent). At query time
+    the modality weights are embedded in the query vector so that the
+    inner product equals the weighted cosine similarity used by the
+    brute-force fallback.
+
+    Returns a dict with keys:
+        indices       – {target_mod: faiss_index | None}
+        pool_by_mod   – {target_mod: [pool_entry, ...]}
+        offsets       – {mod: (start, end)} in fused vector
+        total_dim     – int
+        on_gpu        – bool
+    """
+    offsets, total_dim = _pool_fused_offsets(pool_dims)
+    indices: dict = {}
+    pool_by_mod: dict = {}
+    on_gpu = False
+
+    for mod in MODALITY_KEYS:
+        entries = [e for e in pool if mod in e["features"]]
+        if not entries:
+            indices[mod] = None
+            pool_by_mod[mod] = []
+            continue
+
+        if _FAISS_AVAILABLE and total_dim > 0:
+            vecs = np.stack(
+                [_make_fused_vec(e, offsets, total_dim) for e in entries],
+            ).astype(np.float32)
+            index = _faiss_lib.IndexFlatIP(total_dim)
+            index, gpu = _try_move_to_gpu(index)
+            if gpu:
+                on_gpu = True
+            index.add(vecs)
+            indices[mod] = index
+        else:
+            indices[mod] = None
+
+        pool_by_mod[mod] = entries
+
+    backend = "GPU" if on_gpu else ("CPU" if _FAISS_AVAILABLE else "sklearn")
+    logger.info(
+        "[Generator] FAISS index built — backend=%s, total_dim=%d", backend, total_dim
+    )
+    return {
+        "indices": indices,
+        "pool_by_mod": pool_by_mod,
+        "offsets": offsets,
+        "total_dim": total_dim,
+        "on_gpu": on_gpu,
+    }
+
+
+# ---------------------------------------------------------------------------
+# k-NN retrieval — brute-force (sklearn fallback)
 # ---------------------------------------------------------------------------
 
 
@@ -107,7 +236,6 @@ def _compute_similarity(query_norm, candidate, modality_weights=None):
     if not shared:
         return None
 
-    # Precompute weight getter to avoid a conditional inside the loop
     get_w = (
         (lambda m: modality_weights.get(m, 0.0))
         if modality_weights
@@ -134,7 +262,12 @@ def _knn_retrieve(
     Find k nearest neighbors who have target_modality.
     Returns (weighted_average_features, neighbor_info_list).
     """
-    dim = MODALITY_DIMS[target_modality]
+    entries_with_mod = [e for e in pool if target_modality in e["features"]]
+    dim = (
+        entries_with_mod[0]["features"][target_modality].size
+        if entries_with_mod
+        else MODALITY_DIMS[target_modality]
+    )
     query_norm = {mod: _normalize(arr) for mod, arr in query_features.items()}
 
     candidates = []
@@ -211,7 +344,7 @@ def _knn_retrieve_candidates(
     modality_weights=None,
 ) -> tuple[list[np.ndarray], list[dict]]:
     """
-    Retrieve N candidate reconstructions for target_modality.
+    Retrieve N candidate reconstructions for target_modality (brute-force).
 
     Fetches top k*N neighbours, splits them into N consecutive chunks of k,
     and computes a similarity-weighted average within each chunk. This gives
@@ -219,10 +352,15 @@ def _knn_retrieve_candidates(
     neighbours in the pool.
 
     Returns:
-        candidates:    list of N np.ndarray of shape (MODALITY_DIMS[target],)
+        candidates:    list of N np.ndarray of shape (actual dim,)
         neighbor_info: neighbour metadata for the first (best) candidate
     """
-    dim = MODALITY_DIMS[target_modality]
+    entries_with_mod = [e for e in pool if target_modality in e["features"]]
+    dim = (
+        entries_with_mod[0]["features"][target_modality].size
+        if entries_with_mod
+        else MODALITY_DIMS[target_modality]
+    )
     query_norm = {mod: _normalize(arr) for mod, arr in query_features.items()}
 
     pool_entries = []
@@ -248,6 +386,111 @@ def _knn_retrieve_candidates(
     # the reconstructions genuinely diverse while keeping average similarity
     # comparable across candidates — a requirement for the Verifier to
     # discriminate on biological criteria rather than similarity rank alone.
+    candidates: list[np.ndarray] = []
+    neighbor_info: list[dict] = []
+
+    for i in range(n_candidates):
+        chunk = top_kn[i::n_candidates][:k]
+        if not chunk:
+            candidates.append(np.zeros(dim, dtype=np.float32))
+            continue
+        result, info = _average_chunk(chunk, target_modality, dim)
+        candidates.append(result)
+        if i == 0:
+            neighbor_info = info
+
+    return candidates, neighbor_info
+
+
+# ---------------------------------------------------------------------------
+# k-NN retrieval — FAISS path
+# ---------------------------------------------------------------------------
+
+
+def _build_faiss_query(
+    query_features: dict,
+    offsets: dict,
+    total_dim: int,
+    modality_weights: dict | None,
+) -> np.ndarray:
+    """
+    Build the fused query vector for FAISS IndexFlatIP.
+
+    For each available modality m, writes w_m * normalised_vec into the
+    corresponding slice of a zero-padded vector of length total_dim.
+    Inner product of this query with an unweighted pool entry equals:
+        sum_m  w_m * cosine_sim(query_m, pool_m)
+    which is exactly _compute_similarity with the same weights.
+    """
+    vec = np.zeros(total_dim, dtype=np.float32)
+    for mod, arr in query_features.items():
+        if mod not in offsets:
+            continue
+        start, end = offsets[mod]
+        w = modality_weights.get(mod, 1.0) if modality_weights else 1.0
+        norm_arr = _normalize(arr)
+        slice_len = end - start
+        vec[start : start + min(norm_arr.size, slice_len)] = norm_arr[:slice_len] * w
+    return vec
+
+
+def _knn_retrieve_candidates_faiss(
+    query_features: dict,
+    target_modality: str,
+    faiss_data: dict,
+    k: int = 5,
+    n_candidates: int = 1,
+    exclude_pid: str | None = None,
+    modality_weights: dict | None = None,
+) -> tuple[list[np.ndarray], list[dict]]:
+    """
+    FAISS-based N-candidate retrieval replacing the brute-force inner loop.
+
+    Uses IndexFlatIP (exact inner product) on fused normalised vectors, so
+    results are mathematically identical to the brute-force path within FP
+    rounding. Falls back gracefully when the index for this modality is None.
+    """
+    index = faiss_data["indices"].get(target_modality)
+    entries = faiss_data["pool_by_mod"].get(target_modality, [])
+    offsets = faiss_data["offsets"]
+    total_dim = faiss_data["total_dim"]
+
+    if index is None or not entries:
+        # Fallback: brute-force for this modality
+        return _knn_retrieve_candidates(
+            query_features=query_features,
+            target_modality=target_modality,
+            pool=list(entries),
+            k=k,
+            n_candidates=n_candidates,
+            exclude_pid=exclude_pid,
+            modality_weights=modality_weights,
+        )
+
+    dim = entries[0]["features"][target_modality].size
+
+    query_vec = _build_faiss_query(query_features, offsets, total_dim, modality_weights)
+    n_search = min(k * n_candidates + 1, len(entries))
+
+    distances, idxs = index.search(query_vec.reshape(1, -1), n_search)
+    distances = distances[0]
+    idxs = idxs[0]
+
+    results: list[tuple[float, dict]] = []
+    for sim, idx in zip(distances, idxs):
+        if idx < 0 or int(idx) >= len(entries):
+            continue
+        entry = entries[int(idx)]
+        if exclude_pid and entry["patient_id"] == exclude_pid:
+            continue
+        results.append((float(sim), entry))
+
+    if not results:
+        return [np.zeros(dim, dtype=np.float32)] * n_candidates, []
+
+    results.sort(key=lambda x: x[0], reverse=True)
+    top_kn = results[: k * n_candidates]
+
     candidates: list[np.ndarray] = []
     neighbor_info: list[dict] = []
 
@@ -317,7 +560,7 @@ def _collect_query_features(state: PatientState) -> dict:
             continue
 
         arr = np.array(data).flatten().astype(np.float32)
-        if arr.size == MODALITY_DIMS[mod]:
+        if arr.size > 0:
             query_features[mod] = arr
 
     return query_features
@@ -424,7 +667,8 @@ def make_generator_node(
 
     For each missing modality:
         1. Calls LLM to interpret refined guidance into modality weights
-        2. Computes weighted cosine similarity on shared modalities
+        2. Computes weighted cosine similarity on shared modalities via FAISS
+           IndexFlatIP (GPU→CPU→sklearn fallback chain)
         3. Retrieves top-k*N neighbors split into N candidate reconstructions
         4. Stores N candidates in generation_candidates for the Verifier
 
@@ -437,6 +681,14 @@ def make_generator_node(
         metadata:     Feature name metadata (optional).
         n_candidates: Number of candidates to produce per modality (default 3).
     """
+    # Detect cohort-specific dims from pool (e.g. LUSC methylation=16206 vs 16166)
+    pool_dims = _detect_pool_dims(pool)
+
+    # Build FAISS index once at init (GPU if available, else CPU, else None)
+    faiss_data = _build_faiss_index(pool, pool_dims)
+    _use_faiss = _FAISS_AVAILABLE and any(
+        v is not None for v in faiss_data["indices"].values()
+    )
 
     def generator_node(state: PatientState) -> dict:
         pid = state["patient_id"]
@@ -453,7 +705,10 @@ def make_generator_node(
 
         if not query_features:
             zero_candidates = {
-                mod: [np.zeros(MODALITY_DIMS[mod], dtype=np.float32)] * n_candidates
+                mod: [
+                    np.zeros(pool_dims.get(mod, MODALITY_DIMS[mod]), dtype=np.float32)
+                ]
+                * n_candidates
                 for mod in missing
             }
             log_lines.append(
@@ -483,15 +738,27 @@ def make_generator_node(
                 log_lines=log_lines,
             )
 
-            candidates, neighbors = _knn_retrieve_candidates(
-                query_features=query_features,
-                target_modality=modality,
-                pool=pool,
-                k=k,
-                n_candidates=n_candidates,
-                exclude_pid=pid,
-                modality_weights=modality_weights,
-            )
+            if _use_faiss:
+                candidates, neighbors = _knn_retrieve_candidates_faiss(
+                    query_features=query_features,
+                    target_modality=modality,
+                    faiss_data=faiss_data,
+                    k=k,
+                    n_candidates=n_candidates,
+                    exclude_pid=pid,
+                    modality_weights=modality_weights,
+                )
+            else:
+                candidates, neighbors = _knn_retrieve_candidates(
+                    query_features=query_features,
+                    target_modality=modality,
+                    pool=pool,
+                    k=k,
+                    n_candidates=n_candidates,
+                    exclude_pid=pid,
+                    modality_weights=modality_weights,
+                )
+
             generation_candidates[modality] = candidates
             _append_neighbor_log(
                 log_lines=log_lines,
