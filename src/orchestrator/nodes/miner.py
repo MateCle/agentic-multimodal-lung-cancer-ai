@@ -1,96 +1,55 @@
 """
-Miner node for the LangGraph orchestrator (AFM2-aligned).
+Miner node for the LangGraph orchestrator (AFM2-aligned, two-stage).
 
-Follows AFM2's Paradigm 3: the Miner calls the LLM directly with
-the available modality data to generate mining rules for reconstruction.
-No modality sub-agents — the LLM receives feature statistics and
-metadata names and reasons about cross-modal relationships.
+Stage 1 — per-modality understanding agents run in parallel for every
+available modality. Each agent is a Python class (not a graph node)
+that calls the LLM with a domain-specific prompt and returns an
+AgentSummary.
+
+Stage 2 — the Miner collects the summaries and performs cross-modal
+reasoning with a single LLM call to generate one mining rule per
+missing modality.
 
 Usage in graph.py:
+    from src.orchestrator.agents import (
+        ClinicalAgent, GenomicAgent, VisualAgent, MethylationAgent,
+    )
     from src.orchestrator.nodes.miner import make_miner_node
-    miner = make_miner_node(llm, metadata)
-    builder.add_node("miner", miner)
+
+    agents = {
+        "clinical":       ClinicalAgent(llm, metadata),
+        "transcriptomics": GenomicAgent(llm, metadata),
+        "wsi":            VisualAgent(llm, metadata, pool=pool),
+        "methylation":    MethylationAgent(llm, metadata),
+    }
+    builder.add_node("miner", make_miner_node(llm, agents))
 """
 
 import logging
 
-import numpy as np
-
+from src.orchestrator.agents import ModalityAgent, run_agents_parallel
 from src.orchestrator.llm import BaseLLMClient
 from src.orchestrator.state import PatientState
 
 logger = logging.getLogger(__name__)
 
+
 MINER_SYSTEM_PROMPT = (
-    "You are the Miner agent in a multimodal lung cancer survival prediction "
-    "system, inspired by the AFM2 framework. Your role is to analyze available "
-    "patient data and generate specific mining rules for reconstructing missing "
-    "modalities.\n\n"
-    "The data modalities are:\n"
-    "  - clinical: 63 features (demographics, staging, diagnosis, treatment)\n"
-    "  - transcriptomics: 1824 REACTOME pathway activity scores\n"
-    "  - wsi: 1024-dim slide-level histopathology embedding\n"
-    "  - methylation: 16166 CpG probe / SNP values\n\n"
-    "Generate rules that specify:\n"
-    "  1. Which features from available modalities are most informative\n"
-    "  2. What biological relationships connect available to missing data\n"
-    "  3. How to prioritize similar patients for k-NN retrieval\n\n"
-    "Be specific and grounded in lung cancer biology."
+    "You are the Miner agent in a multimodal lung cancer survival "
+    "prediction system following the AFM2 framework. Per-modality "
+    "understanding agents have analysed the patient's available data "
+    "and provided structured summaries. Your role is cross-modal "
+    "reasoning: for each missing modality, generate ONE mining rule "
+    "that:\n"
+    "  1. Identifies the strongest biological links from the available "
+    "modalities to the missing one,\n"
+    "  2. Specifies which available features should weight neighbour "
+    "selection in the downstream k-NN retrieval,\n"
+    "  3. Echoes any agent concerns that should temper the "
+    "reconstruction (e.g. low confidence on a source modality).\n\n"
+    "Be specific and grounded in lung cancer biology. Each rule should "
+    "be 2-4 sentences."
 )
-
-
-# ---------------------------------------------------------------------------
-# Feature statistics for prompt construction
-# ---------------------------------------------------------------------------
-
-
-def _compute_modality_stats(
-    features: np.ndarray,
-    modality: str,
-    metadata: dict | None = None,
-) -> str:
-    """
-    Build a human-readable summary of a modality's features
-    for inclusion in the LLM prompt.
-    """
-    arr = np.array(features).flatten()
-    stats_lines = [
-        f"  Dimensions: {len(arr)}",
-        f"  Non-zero: {np.count_nonzero(arr)}/{len(arr)}",
-        f"  Range: [{arr.min():.3f}, {arr.max():.3f}]",
-        f"  Mean: {arr.mean():.3f}, Std: {arr.std():.3f}",
-    ]
-
-    # Add feature names from metadata where available
-    if metadata is not None:
-        col_key = f"{modality}_columns"
-        columns = metadata.get(col_key, [])
-
-        if modality == "clinical" and columns:
-            # Show active (non-zero) clinical features by name
-            active = [
-                columns[i] for i in range(len(arr)) if i < len(columns) and arr[i] != 0
-            ]
-            if active:
-                stats_lines.append(f"  Active features: {', '.join(active[:15])}")
-                if len(active) > 15:
-                    stats_lines.append(f"    (and {len(active) - 15} more)")
-
-        elif modality == "transcriptomics" and columns:
-            # Show top 5 most active pathways by name
-            top_idx = np.argsort(np.abs(arr))[-5:][::-1]
-            top_named = [
-                f"{columns[i]}={arr[i]:.2f}" for i in top_idx if i < len(columns)
-            ]
-            stats_lines.append(f"  Top pathways: {', '.join(top_named)}")
-
-        elif modality == "wsi":
-            stats_lines.append(f"  L2 norm: {np.linalg.norm(arr):.3f}")
-            stats_lines.append(
-                f"  Sparsity: {1 - np.count_nonzero(arr) / len(arr):.1%}"
-            )
-
-    return "\n".join(stats_lines)
 
 
 # ---------------------------------------------------------------------------
@@ -98,38 +57,25 @@ def _compute_modality_stats(
 # ---------------------------------------------------------------------------
 
 
-def _build_mining_prompt(
-    state: PatientState,
-    metadata: dict | None,
-) -> str:
-    """Build the prompt for the Miner LLM call."""
-    available = state["available_modalities"]
+def _build_mining_prompt(state: PatientState, agent_summaries: dict) -> str:
+    """Build the cross-modal reasoning prompt from agent summaries."""
+    pid = state["patient_id"]
+    cohort = (state.get("cohort") or "unknown").upper()
     missing = state["missing_modalities"]
 
-    # Summarize each available modality
-    available_block = []
-    for mod in available:
-        features = state.get(mod)
-        if features is None:
-            continue
-        summary = _compute_modality_stats(features, mod, metadata)
-        available_block.append(f"[{mod.upper()}]\n{summary}")
+    if agent_summaries:
+        agent_block = "\n\n".join(s.to_prompt_block() for s in agent_summaries.values())
+    else:
+        agent_block = "(no agent summaries available)"
 
-    available_text = "\n\n".join(available_block) or "(no data available)"
-    missing_text = ", ".join(missing)
-
-    prompt = (
-        f"Patient {state['patient_id']} (cohort: {state.get('cohort', 'unknown').upper()}).\n\n"
-        f"AVAILABLE modalities:\n\n{available_text}\n\n"
-        f"MISSING modalities: {missing_text}\n\n"
-        f"For each missing modality, generate a mining rule that guides "
-        f"k-NN retrieval-based reconstruction. The rule should specify "
-        f"which available features to weight higher when computing "
-        f"patient similarity, and what biological relationships to exploit.\n\n"
-        f'Respond ONLY in JSON: {{"rules": {{"modality_name": "rule text", ...}}}}'
+    return (
+        f"Patient {pid} (cohort: {cohort}).\n\n"
+        f"AGENT SUMMARIES (available modalities):\n\n{agent_block}\n\n"
+        f"MISSING modalities: {', '.join(missing)}.\n\n"
+        f"For each missing modality, generate a mining rule. Respond "
+        f"ONLY in JSON: "
+        f'{{"rules": {{"<modality>": "<rule>", ...}}}}.'
     )
-
-    return prompt
 
 
 # ---------------------------------------------------------------------------
@@ -139,45 +85,75 @@ def _build_mining_prompt(
 
 def make_miner_node(
     llm: BaseLLMClient,
+    agents: dict[str, ModalityAgent],
     metadata: dict | None = None,
 ):
     """
-    Returns a Miner closure following AFM2's direct LLM approach.
-
-    The Miner:
-        1. Computes statistics of each available modality
-        2. Includes feature names from metadata in the prompt
-        3. Calls the LLM to generate mining rules
-        4. Returns one rule per missing modality
+    Build the Miner LangGraph node.
 
     Args:
-        llm:      LLM client (Qwen via vLLM, OpenAI, or mock).
-        metadata: Dict from metadata .pkl with *_columns keys.
+        llm:      LLM client used for the cross-modal reasoning step.
+        agents:   {modality_key: ModalityAgent}. Modalities not present
+                  in this dict are silently skipped at the agent stage,
+                  but the cross-modal step still runs for whatever
+                  summaries are available.
+        metadata: Reserved for future hooks; agents own their metadata.
     """
 
     def miner_node(state: PatientState) -> dict:
         missing = state["missing_modalities"]
-        log_lines = []
+        log_lines: list[str] = []
 
         if not missing:
             log_lines.append("[Miner] No missing modalities. Skipping.")
-            return {"mining_rules": {}, "execution_log": log_lines}
+            return {
+                "mining_rules": {},
+                "agent_summaries": {},
+                "execution_log": log_lines,
+            }
 
-        # Build and send prompt
-        prompt = _build_mining_prompt(state, metadata)
+        # ---- Stage 1: per-modality understanding agents (parallel) ------
+        modality_features = {
+            mod: state.get(mod)
+            for mod in state["available_modalities"]
+            if state.get(mod) is not None
+        }
+        summaries, timings = run_agents_parallel(agents, modality_features)
 
+        for mod in summaries:
+            log_lines.append(
+                f"[Miner] Agent '{mod}' completed in "
+                f"{timings.get(mod, -1):.2f}s "
+                f"(confidence={summaries[mod].confidence})."
+            )
+        per_agent_sum = sum(v for k, v in timings.items() if k != "_total" and v > 0)
+        speedup = (
+            per_agent_sum / timings["_total"] if timings.get("_total", 0) > 0 else 0.0
+        )
         log_lines.append(
-            f"[Miner] Calling LLM for mining rules. "
-            f"Available: {state['available_modalities']}, "
+            f"[Miner] Agents wall-clock {timings.get('_total', 0):.2f}s "
+            f"vs sequential {per_agent_sum:.2f}s "
+            f"(speedup x{speedup:.2f}, n={len(summaries)})."
+        )
+
+        # ---- Stage 2: cross-modal reasoning -----------------------------
+        prompt = _build_mining_prompt(state, summaries)
+        log_lines.append(
+            f"[Miner] Cross-modal LLM call. "
+            f"Available: {state['available_modalities']}. "
             f"Missing: {missing}."
         )
 
-        response = llm.invoke_json(prompt, system=MINER_SYSTEM_PROMPT)
-        rules = response.get("rules", {})
+        try:
+            response = llm.invoke_json(prompt, system=MINER_SYSTEM_PROMPT)
+            rules = response.get("rules", {}) if isinstance(response, dict) else {}
+        except Exception as e:
+            log_lines.append(f"[Miner] Cross-modal LLM call failed: {e}")
+            rules = {}
 
         # Ensure a rule exists for every missing modality
         for mod in missing:
-            if mod not in rules:
+            if mod not in rules or not str(rules.get(mod, "")).strip():
                 rules[mod] = (
                     f"No specific rule generated for '{mod}'. "
                     f"Use k-NN with uniform weighting as fallback."
@@ -186,13 +162,17 @@ def make_miner_node(
         for mod, rule in rules.items():
             log_lines.append(f"[Miner] Rule for '{mod}': {str(rule)[:100]}...")
 
-        return {"mining_rules": rules, "execution_log": log_lines}
+        return {
+            "mining_rules": rules,
+            "agent_summaries": summaries,
+            "execution_log": log_lines,
+        }
 
     return miner_node
 
 
 # ---------------------------------------------------------------------------
-# Backward-compatible mock
+# Backward-compatible deterministic mock (no LLM, no agents)
 # ---------------------------------------------------------------------------
 
 _MOCK_RULES: dict[str, str] = {
@@ -228,7 +208,7 @@ _FALLBACK_RULE = (
 
 
 def miner_node(state: PatientState) -> dict:
-    """MOCK fallback: deterministic rules without LLM."""
+    """MOCK fallback: deterministic rules without LLM, no agents called."""
     available = state["available_modalities"]
     missing = state["missing_modalities"]
 
@@ -246,4 +226,8 @@ def miner_node(state: PatientState) -> dict:
     for modality, rule in rules.items():
         log_lines.append(f"[Miner] Rule for '{modality}': {rule[:80]}...")
 
-    return {"mining_rules": rules, "execution_log": log_lines}
+    return {
+        "mining_rules": rules,
+        "agent_summaries": {},
+        "execution_log": log_lines,
+    }

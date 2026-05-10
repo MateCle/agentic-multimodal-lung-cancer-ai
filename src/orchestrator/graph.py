@@ -23,6 +23,12 @@ from langgraph.graph import END, StateGraph
 
 from src.baseline.pipeline import load_pipeline, pipeline_path
 from src.data_loader import load_patient, load_raw_data
+from src.orchestrator.agents import (
+    ClinicalAgent,
+    GenomicAgent,
+    MethylationAgent,
+    VisualAgent,
+)
 from src.orchestrator.llm import get_llm_client
 from src.orchestrator.nodes.generator import (
     build_pool_index,
@@ -184,9 +190,15 @@ def build_graph(
     builder.add_node(_DATA_LOADER, _make_data_loader_node(all_data, cohort_map))
     builder.add_node(_PLANNER, planner_node)
 
-    # Miner: LLM with metadata, or mock
+    # Miner: two-stage with parallel modality agents, or mock
     if llm is not None:
-        builder.add_node(_MINER, make_miner_node(llm, metadata))
+        agents = {
+            "clinical": ClinicalAgent(llm, metadata),
+            "transcriptomics": GenomicAgent(llm, metadata),
+            "wsi": VisualAgent(llm, metadata, pool=pool, n_neighbors=3),
+            "methylation": MethylationAgent(llm, metadata),
+        }
+        builder.add_node(_MINER, make_miner_node(llm, agents))
     else:
         builder.add_node(_MINER, mock_miner)
 
