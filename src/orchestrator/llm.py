@@ -61,8 +61,12 @@ class MockLLMClient(BaseLLMClient):
         self._call_count += 1
         logger.debug(f"[MockLLM] Call #{self._call_count}, prompt length={len(prompt)}")
 
-        # Generate contextual mock responses based on prompt content
-        if "mining rules" in prompt.lower() or "reconstruct" in prompt.lower():
+        # Generate contextual mock responses based on system + prompt keywords.
+        # Pre-Verifier system prompt contains "guidance"; check it first so we
+        # don't misroute it to the miner branch (which also sees "mining rules").
+        if "guidance" in system.lower():
+            content = self._mock_pre_verifier_response(prompt)
+        elif "mining rules" in prompt.lower() or "reconstruct" in prompt.lower():
             content = self._mock_miner_response(prompt)
         elif "verify" in prompt.lower() or "plausib" in prompt.lower():
             content = self._mock_verifier_response(prompt)
@@ -86,6 +90,33 @@ class MockLLMClient(BaseLLMClient):
             return json.loads(response.content)
         except json.JSONDecodeError:
             return {"raw_response": response.content}
+
+    def _mock_pre_verifier_response(self, _prompt: str) -> str:
+        return json.dumps(
+            {
+                "guidance": {
+                    "transcriptomics": (
+                        "Prioritise clinical staging and smoking history for retrieval; "
+                        "these are the strongest predictors of gene expression patterns "
+                        "in LUAD/LUSC."
+                    ),
+                    "wsi": (
+                        "Focus on cohort (LUAD vs LUSC) and pathological stage; these "
+                        "drive the gross morphological differences captured by slide-level "
+                        "embeddings."
+                    ),
+                    "methylation": (
+                        "Weight smoking history and age heavily; tobacco-related CpG "
+                        "methylation patterns are well-established and actionable for "
+                        "retrieval."
+                    ),
+                    "clinical": (
+                        "Use transcriptomic pathway activity and histological type as "
+                        "primary retrieval signals."
+                    ),
+                }
+            }
+        )
 
     def _mock_miner_response(self, _prompt: str) -> str:
         return json.dumps(
