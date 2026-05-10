@@ -69,6 +69,12 @@ class PatientState(TypedDict):
     # Consumed by the Language Agent for the clinical report's caveats section.
     source_map: dict
 
+    # Post-hoc uncertainty flag.  Dict with three keys:
+    #   provenance_proportion    float [0,1]
+    #   mahalanobis_ood_distance {"distance", "percentile_rank", "backend"}
+    #   bootstrap_ci_risk_score  {"lower", "point", "upper"}
+    prediction_reliability: dict
+
     # --- Language Agent I/O ---
     # Free-text query from the user (set by run.py CLI from --query).
     user_query: str
