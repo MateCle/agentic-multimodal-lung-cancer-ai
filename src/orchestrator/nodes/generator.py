@@ -103,13 +103,13 @@ def _compute_similarity(query_norm, candidate, modality_weights=None):
     weights = []
     for m in shared:
         sim = float(np.dot(query_norm[m], candidate["features_norm"][m]))
-        w = modality_weights.get(m, 1.0) if modality_weights else 1.0
+        w = modality_weights.get(m, 0.0) if modality_weights else 1.0
         sims.append(sim * w)
         weights.append(w)
 
     total_weight = sum(weights)
     if total_weight == 0:
-        return np.mean(sims)
+        return None if modality_weights else np.mean(sims)
     return sum(sims) / total_weight
 
 
@@ -187,7 +187,8 @@ def _build_guidance_prompt(
         prompt += (
             f"\nPREVIOUS ATTEMPT FAILED. Verifier feedback:\n"
             f"  {correction_hint}\n"
-            f"Adjust your weights and k accordingly.\n"
+            f"Adjust your weights and k accordingly. Make a concrete change; "
+            f"do not repeat the same weights and k.\n"
         )
     prompt += (
         f"\nRespond ONLY in JSON:\n"
@@ -243,10 +244,14 @@ def _get_llm_guidance(
     )
     try:
         response = llm.invoke_json(guidance_prompt, system=GENERATOR_SYSTEM_PROMPT)
-        modality_weights = response.get("modality_weights")
+        modality_weights = _sanitize_modality_weights(
+            response.get("modality_weights"), available_mods
+        )
         k_suggestion = response.get("k_suggestion")
         if k_suggestion and isinstance(k_suggestion, (int, float)):
             k = max(3, min(20, int(k_suggestion)))
+        if correction_hint and k < base_k:
+            k = base_k
         reasoning = response.get("reasoning", "")
         log_lines.append(
             f"[Generator] LLM guidance for '{modality}': "
@@ -260,6 +265,26 @@ def _get_llm_guidance(
         )
 
     return modality_weights, k
+
+
+def _sanitize_modality_weights(
+    raw_weights: dict | None, available_mods: list[str]
+) -> dict | None:
+    if not isinstance(raw_weights, dict):
+        return None
+
+    weights: dict[str, float] = {}
+    for mod in available_mods:
+        val = raw_weights.get(mod, 0.0)
+        try:
+            val = float(val)
+        except (TypeError, ValueError):
+            val = 0.0
+        weights[mod] = max(0.0, val)
+
+    if sum(weights.values()) <= 0:
+        return None
+    return weights
 
 
 def _append_neighbor_log(

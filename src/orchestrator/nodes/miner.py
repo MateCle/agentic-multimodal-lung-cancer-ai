@@ -26,6 +26,7 @@ Usage in graph.py:
 """
 
 import logging
+import re
 
 from src.orchestrator.agents import ModalityAgent, run_agents_parallel
 from src.orchestrator.llm import BaseLLMClient
@@ -48,7 +49,14 @@ MINER_SYSTEM_PROMPT = (
     "  3. Echoes any agent concerns that should temper the "
     "reconstruction (e.g. low confidence on a source modality).\n\n"
     "Be specific and grounded in lung cancer biology. Each rule should "
-    "be 2-4 sentences."
+    "be 2-4 sentences. Do NOT simply restate feature names from the "
+    "observed modalities unless they are well-established, biologically "
+    "relevant drivers for the missing modality. Prefer cautious, general, "
+    "but biologically plausible reasoning over long lists of feature names. "
+    "For WSI-related reasoning, remember that the available image "
+    "representation is a single slide-level embedding, not tile-level "
+    "features. Do NOT mention tile-level quantities such as cell density, "
+    "infiltration patterns, or specific cellular subpopulations."
 )
 
 
@@ -74,8 +82,92 @@ def _build_mining_prompt(state: PatientState, agent_summaries: dict) -> str:
         f"MISSING modalities: {', '.join(missing)}.\n\n"
         f"For each missing modality, generate a mining rule. Respond "
         f"ONLY in JSON: "
-        f'{{"rules": {{"<modality>": "<rule>", ...}}}}.'
+        f'{{"rules": {{"<modality>": "<rule>", ...}}}}. '
+        f"Do not copy feature names from the summaries verbatim unless "
+        f"they are truly biologically central to the missing modality. "
+        f"If the missing modality is WSI, keep the reasoning at the slide-"
+        f"embedding level and avoid tile-level language."
     )
+
+
+def _safe_fallback_rule(modality: str) -> str:
+    if modality == "wsi":
+        return (
+            "Use broad slide-level morphology, tumour architecture, stromal "
+            "context, and cohort-level clinical patterns to guide retrieval. "
+            "Do not infer tile-level cell counts or subpopulation structure."
+        )
+    if modality == "methylation":
+        return (
+            "Use broad links between smoking exposure, tumour stage, immune "
+            "activation, and epigenetic regulation to guide retrieval. Avoid "
+            "naming specific probes or pathway IDs unless they are clearly "
+            "established drivers of the missing signal."
+        )
+    if modality == "transcriptomics":
+        return (
+            "Use broad links between tumour stage, smoking exposure, immune "
+            "activation, and proliferation state to guide retrieval. Avoid "
+            "listing specific genes unless they are well-established lung "
+            "cancer markers relevant to the missing signal."
+        )
+    return (
+        "Use broad clinical and molecular context to guide retrieval, "
+        "avoiding unsupported feature lists and modality-inappropriate claims."
+    )
+
+
+def _sanitize_rule_text(modality: str, rule: str) -> str:
+    text = str(rule or "").strip()
+    if not text:
+        return _safe_fallback_rule(modality)
+
+    # Block 1: WSI tile-level vocabulary (specific and safe)
+    if modality == "wsi" and re.search(
+        r"\b(?:tile|tiles|tile-level|cell density|infiltration|subpopulation|"
+        r"CD\d+\+? T cells?|single-cell)\b",
+        text,
+        re.I,
+    ):
+        return _safe_fallback_rule(modality)
+
+    # Block 2: Long REACTOME pathway IDs (likely feature-leakage)
+    if re.search(r"REACTOME_[A-Z0-9_]{15,}", text):
+        return _safe_fallback_rule(modality)
+
+    # Block 3: Long lists of gene-symbol-like uppercase tokens
+    # Whitelist common/legitimate medical terms and well-established driver genes
+    common_terms = {
+        "WSI",
+        "LUAD",
+        "LUSC",
+        "TCGA",
+        "DNA",
+        "RNA",
+        "TP53",
+        "EGFR",
+        "KRAS",
+        "ALK",
+        "BRAF",
+        "PD",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "N0",
+        "N1",
+        "N2",
+        "N3",
+        "M0",
+        "M1",
+        "AHRR",
+        "CYP1A1",  # smoking-related, well-established
+    }
+    upper_tokens = set(re.findall(r"\b[A-Z][A-Z0-9]{1,8}\b", text)) - common_terms
+    if len(upper_tokens) > 4:
+        return _safe_fallback_rule(modality)
+
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +250,8 @@ def make_miner_node(
                     f"No specific rule generated for '{mod}'. "
                     f"Use k-NN with uniform weighting as fallback."
                 )
+            else:
+                rules[mod] = _sanitize_rule_text(mod, rules[mod])
 
         for mod, rule in rules.items():
             log_lines.append(f"[Miner] Rule for '{mod}': {str(rule)[:100]}...")

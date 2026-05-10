@@ -26,10 +26,12 @@ import numpy as np
 
 from src.baseline.pipeline import FittedPipeline
 from src.data_loader import MODALITY_DIMS, MODALITY_KEYS
-from src.explain import compute_shap_for_patient
+from src.explain import _build_feature_names, compute_shap_for_patient
 from src.orchestrator.state import PatientState
 
 logger = logging.getLogger(__name__)
+
+_ACTIVE_MAGNITUDE_THRESHOLD = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -58,40 +60,15 @@ def _assemble_features(state: PatientState) -> tuple[np.ndarray, dict]:
     verification_passed = bool(state.get("verification_passed"))
 
     for mod in MODALITY_KEYS:
-        expected_dim = MODALITY_DIMS[mod]
-        block: np.ndarray
-        info: dict
-
-        if mod in available and state.get(mod) is not None:
-            arr = np.asarray(state[mod], dtype=np.float32).flatten()
-            if arr.size == expected_dim:
-                block = arr
-                info = {"source": "real"}
-            else:
-                block = np.zeros(expected_dim, dtype=np.float32)
-                info = {
-                    "source": "zero",
-                    "reason": f"shape mismatch: got {arr.size}, expected {expected_dim}",
-                }
-        elif mod in generated:
-            arr = np.asarray(generated[mod], dtype=np.float32).flatten()
-            if arr.size == expected_dim:
-                block = arr
-                info = {
-                    "source": "generated",
-                    "verified": verification_passed,
-                    "verification_score": float(verification.get(mod, 0.0)),
-                }
-            else:
-                block = np.zeros(expected_dim, dtype=np.float32)
-                info = {
-                    "source": "zero",
-                    "reason": f"generated shape mismatch: got {arr.size}, expected {expected_dim}",
-                }
-        else:
-            block = np.zeros(expected_dim, dtype=np.float32)
-            info = {"source": "zero", "reason": "neither real nor generated"}
-
+        block, info = _build_modality_block(
+            state,
+            mod,
+            MODALITY_DIMS[mod],
+            available,
+            generated,
+            verification,
+            verification_passed,
+        )
         blocks.append(block)
         source_map[mod] = info
 
@@ -137,6 +114,62 @@ def _apply_pipeline(x_raw: np.ndarray, pipeline: FittedPipeline) -> np.ndarray:
     return x_pca
 
 
+def _feature_index_map(n_features: int, metadata: dict | None) -> dict[str, int]:
+    names = _build_feature_names(n_features, metadata=metadata)
+    return {name: i for i, name in enumerate(names)}
+
+
+def _locate_modality(idx: int) -> tuple[str, int]:
+    offset = 0
+    for mod in MODALITY_KEYS:
+        dim = MODALITY_DIMS[mod]
+        if idx < offset + dim:
+            return mod, idx - offset
+        offset += dim
+    return "unknown", idx
+
+
+def _build_modality_block(
+    state: PatientState,
+    mod: str,
+    expected_dim: int,
+    available: set[str],
+    generated: dict,
+    verification: dict,
+    verification_passed: bool,
+) -> tuple[np.ndarray, dict]:
+    if mod in available and state.get(mod) is not None:
+        arr = np.asarray(state[mod], dtype=np.float32).flatten()
+        if arr.size == expected_dim:
+            return arr, {"source": "real"}
+        return _zero_block(
+            expected_dim,
+            f"shape mismatch: got {arr.size}, expected {expected_dim}",
+        )
+
+    if mod in generated:
+        arr = np.asarray(generated[mod], dtype=np.float32).flatten()
+        if arr.size == expected_dim:
+            return arr, {
+                "source": "generated",
+                "verified": verification_passed,
+                "verification_score": float(verification.get(mod, 0.0)),
+            }
+        return _zero_block(
+            expected_dim,
+            f"generated shape mismatch: got {arr.size}, expected {expected_dim}",
+        )
+
+    return _zero_block(expected_dim, "neither real nor generated")
+
+
+def _zero_block(expected_dim: int, reason: str) -> tuple[np.ndarray, dict]:
+    return np.zeros(expected_dim, dtype=np.float32), {
+        "source": "zero",
+        "reason": reason,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Background sample for SHAP (cached)
 # ---------------------------------------------------------------------------
@@ -166,6 +199,159 @@ def _get_background_pca(
     return bg
 
 
+def _feature_column_type(
+    mod: str,
+    local_idx: int,
+    clinical_column_types: list[str] | None,
+) -> str:
+    if mod == "clinical":
+        return (
+            clinical_column_types[local_idx]
+            if clinical_column_types and local_idx < len(clinical_column_types)
+            else "continuous"
+        )
+    if mod in ("transcriptomics", "methylation"):
+        return "score"
+    if mod == "wsi":
+        return "embedding"
+    return "value"
+
+
+def _is_feature_active(value: float, column_type: str) -> bool:
+    if column_type in ("binary_01", "binary_m11"):
+        return float(value) > 0.5
+    return abs(float(value)) >= _ACTIVE_MAGNITUDE_THRESHOLD
+
+
+def _build_shap_details(
+    top_features: list[tuple[str, float]],
+    x_raw: np.ndarray,
+    metadata: dict,
+    clinical_column_types: list[str] | None,
+) -> list[dict]:
+    details: list[dict] = []
+    index_map = _feature_index_map(x_raw.shape[1], metadata)
+    for name, imp in top_features:
+        idx = index_map.get(name)
+        if idx is None:
+            details.append(
+                {
+                    "name": name,
+                    "importance": float(imp),
+                    "raw_value": None,
+                    "modality": "unknown",
+                    "column_type": "unknown",
+                    "active": False,
+                }
+            )
+            continue
+
+        mod, local_idx = _locate_modality(idx)
+        column_type = _feature_column_type(mod, local_idx, clinical_column_types)
+        raw_value = float(x_raw[0, idx])
+        details.append(
+            {
+                "name": name,
+                "importance": float(imp),
+                "raw_value": raw_value,
+                "modality": mod,
+                "column_type": column_type,
+                "active": _is_feature_active(raw_value, column_type),
+            }
+        )
+    return details
+
+
+def _filter_rare_one_hot(
+    top_features: list[tuple[str, float]],
+    pool: list[dict],
+    metadata: dict,
+    min_prevalence: float = 0.05,
+) -> list[tuple[str, float]]:
+    """
+    Drop one-hot features that are active in < min_prevalence fraction of
+    the training pool. These tend to dominate back-projected SHAP due to
+    high PCA loadings on sparse columns, and produce confusing reports
+    (e.g., 'the disease type is not present' for a rare subtype).
+    """
+    if not pool or not metadata:
+        return top_features
+
+    # Build name -> column index map for clinical (where one-hot live)
+    clinical_cols = metadata.get("clinical_columns", [])
+    if not clinical_cols:
+        return top_features
+
+    name_to_idx = {n: i for i, n in enumerate(clinical_cols)}
+    n_pool = len(pool)
+
+    filtered = []
+    for name, imp in top_features:
+        idx = name_to_idx.get(name)
+        if idx is None:
+            # Not a clinical feature — keep (transcriptomics/methylation/wsi)
+            filtered.append((name, imp))
+            continue
+
+        # Count how many pool patients have this feature = 1
+        n_active = 0
+        for entry in pool:
+            clinical = entry.get("features", {}).get("clinical")
+            if clinical is None:
+                continue
+            arr = np.asarray(clinical, dtype=np.float32).flatten()
+            if idx < arr.size and abs(arr[idx] - 1.0) < 1e-6:
+                n_active += 1
+
+        prevalence = n_active / n_pool if n_pool > 0 else 0.0
+        if prevalence >= min_prevalence:
+            filtered.append((name, imp))
+        # else: skip — feature too rare to be meaningfully ranked
+
+    return filtered
+
+
+def _append_missing_pipeline_log(
+    log_lines: list[str], cohort: str, available: list[str]
+) -> None:
+    log_lines.append(
+        f"[Predictor] No pipeline loaded for cohort='{cohort}'. "
+        f"Available: {available}. Falling back to mock."
+    )
+
+
+def _append_source_logs(log_lines: list[str], source_map: dict) -> None:
+    for mod, info in source_map.items():
+        message = f"[Predictor] '{mod}' source: {info['source']}"
+        if info.get("source") == "generated":
+            message += f" (verified={info['verified']}, score={info['verification_score']:.2f})"
+        log_lines.append(message)
+
+
+def _safe_apply_pipeline(
+    x_raw: np.ndarray, pipeline: FittedPipeline, log_lines: list[str]
+) -> np.ndarray | None:
+    try:
+        return _apply_pipeline(x_raw, pipeline)
+    except Exception as exc:
+        log_lines.append(
+            f"[Predictor] Pipeline application failed: {exc}. Falling back to mock."
+        )
+        return None
+
+
+def _safe_predict_risk(
+    pipeline: FittedPipeline, x_pca: np.ndarray, log_lines: list[str]
+) -> float | None:
+    try:
+        return float(np.asarray(pipeline.model.predict_risk(x_pca)).flatten()[0])
+    except Exception as exc:
+        log_lines.append(
+            f"[Predictor] predict_risk failed: {exc}. Falling back to mock."
+        )
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Predictor node factory
 # ---------------------------------------------------------------------------
@@ -174,6 +360,8 @@ def _get_background_pca(
 def make_predictor_node(
     pipelines: dict,
     metadata_by_cohort: dict | None = None,
+    clinical_column_types: list[str] | None = None,
+    pool=None,
 ):
     """
     Build the Predictor LangGraph node.
@@ -192,45 +380,23 @@ def make_predictor_node(
         cohort = (state.get("cohort") or "").lower()
 
         if cohort not in pipelines:
-            log_lines.append(
-                f"[Predictor] No pipeline loaded for cohort='{cohort}'. "
-                f"Available: {list(pipelines.keys())}. Falling back to mock."
-            )
+            _append_missing_pipeline_log(log_lines, cohort, list(pipelines.keys()))
             return _mock_response(state, log_lines)
 
         pipeline = pipelines[cohort]
 
         # 1. Assemble raw features and source map
         x_raw, source_map = _assemble_features(state)
-        for mod, info in source_map.items():
-            log_lines.append(
-                f"[Predictor] '{mod}' source: {info['source']}"
-                + (
-                    f" (verified={info['verified']}, "
-                    f"score={info['verification_score']:.2f})"
-                    if info.get("source") == "generated"
-                    else ""
-                )
-            )
+        _append_source_logs(log_lines, source_map)
 
         # 2. Apply preprocessing path (MICE or direct)
-        try:
-            x_pca = _apply_pipeline(x_raw, pipeline)
-        except Exception as e:
-            log_lines.append(
-                f"[Predictor] Pipeline application failed: {e}. Falling back to mock."
-            )
+        x_pca = _safe_apply_pipeline(x_raw, pipeline, log_lines)
+        if x_pca is None:
             return _mock_response(state, log_lines)
 
         # 3. Risk score
-        try:
-            risk_score = float(
-                np.asarray(pipeline.model.predict_risk(x_pca)).flatten()[0]
-            )
-        except Exception as e:
-            log_lines.append(
-                f"[Predictor] predict_risk failed: {e}. Falling back to mock."
-            )
+        risk_score = _safe_predict_risk(pipeline, x_pca, log_lines)
+        if risk_score is None:
             return _mock_response(state, log_lines)
 
         log_lines.append(f"[Predictor] DSS risk score: {risk_score:.4f}")
@@ -243,10 +409,11 @@ def make_predictor_node(
 
         # 5. Per-patient SHAP with back-projection
         top_features: list[tuple[str, float]] = []
+        shap_feature_details: list[dict] = []
         try:
             metadata = metadata_by_cohort.get(cohort, {})
             background = _get_background_pca(pipeline)
-            top_features = compute_shap_for_patient(
+            top_candidates = compute_shap_for_patient(
                 model=pipeline.model,
                 model_name=pipeline.model_name,
                 x_pca=x_pca,
@@ -255,11 +422,16 @@ def make_predictor_node(
                 metadata=metadata,
                 per_modality_transforms=pipeline.per_modality_transforms,
                 n_top=10,
+                n_candidates=30,
             )
+            top_features = _filter_rare_one_hot(top_candidates, pool, metadata)[:10]
             if top_features:
                 log_lines.append(
                     f"[Predictor] Top SHAP feature: "
                     f"{top_features[0][0]} (|importance|={top_features[0][1]:.4f})"
+                )
+                shap_feature_details = _build_shap_details(
+                    top_features, x_raw, metadata, clinical_column_types
                 )
         except Exception as e:
             log_lines.append(f"[Predictor] SHAP computation failed (non-blocking): {e}")
@@ -268,6 +440,7 @@ def make_predictor_node(
             "survival_prediction": risk_score,
             "risk_class": risk_class,
             "top_shap_features": top_features,
+            "shap_feature_details": shap_feature_details,
             "source_map": source_map,
             "execution_log": log_lines,
         }
@@ -301,6 +474,7 @@ def _mock_response(state: PatientState, log_lines: list[str]) -> dict:
         "survival_prediction": risk_score,
         "risk_class": "unknown",
         "top_shap_features": [],
+        "shap_feature_details": [],
         "source_map": {},
         "execution_log": log_lines,
     }

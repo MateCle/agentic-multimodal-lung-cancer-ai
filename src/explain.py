@@ -261,6 +261,7 @@ def compute_shap_for_patient(
     metadata: dict | None = None,
     per_modality_transforms: dict | None = None,
     n_top: int = 10,
+    n_candidates: int = 30,
 ) -> list[tuple[str, float]]:
     """
     Compute SHAP values for a single patient and back-project them to
@@ -311,5 +312,5 @@ def compute_shap_for_patient(
 
     # Top-K by absolute importance
     abs_importance = np.abs(feature_shap)
-    top_idx = np.argsort(abs_importance)[::-1][:n_top]
+    top_idx = np.argsort(abs_importance)[::-1][:n_candidates]
     return [(feature_names[i], float(abs_importance[i])) for i in top_idx]

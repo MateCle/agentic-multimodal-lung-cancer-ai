@@ -22,7 +22,7 @@ from pathlib import Path
 from langgraph.graph import END, StateGraph
 
 from src.baseline.pipeline import load_pipeline, pipeline_path
-from src.data_loader import load_patient, load_raw_data
+from src.data_loader import MODALITY_DIMS, load_patient, load_raw_data
 from src.orchestrator.agents import (
     ClinicalAgent,
     GenomicAgent,
@@ -30,6 +30,7 @@ from src.orchestrator.agents import (
     MethylationAgent,
     VisualAgent,
 )
+from src.orchestrator.agents.clinical import infer_clinical_column_types
 from src.orchestrator.llm import get_llm_client
 from src.orchestrator.nodes.generator import (
     build_pool_index,
@@ -215,6 +216,7 @@ def _make_data_loader_node(all_data: dict, cohort_map: dict):
             "survival_prediction": None,
             "risk_class": "",
             "top_shap_features": [],
+            "shap_feature_details": [],
             "source_map": {},
             "clinical_report": "",
             "routing_decision": "",
@@ -283,11 +285,20 @@ def build_graph(
     pool = None
     pool_stats = None
     llm = None
+    verifier_llm = None
+    clinical_column_types: list[str] = []
 
     if train_patient_ids is not None:
         pool = build_pool_index(all_data, train_patient_ids)
         pool_stats = build_pool_stats(pool)
+        clinical_column_types = infer_clinical_column_types(
+            pool, MODALITY_DIMS["clinical"]
+        )
         llm = get_llm_client(provider=llm_provider, model=llm_model)
+
+        verifier_llm = get_llm_client(
+            provider=llm_provider, model=llm_model, temperature=0.0
+        )
 
         logger.info(
             f"AFM2 mode: pool={len(pool)} patients, LLM={llm.__class__.__name__}"
@@ -308,9 +319,17 @@ def build_graph(
     # Miner: two-stage with parallel modality agents, or mock
     if llm is not None:
         agents = {
-            "clinical": ClinicalAgent(llm, metadata),
+            "clinical": ClinicalAgent(
+                llm, metadata, clinical_column_types=clinical_column_types
+            ),
             "transcriptomics": GenomicAgent(llm, metadata),
-            "wsi": VisualAgent(llm, metadata, pool=pool, n_neighbors=3),
+            "wsi": VisualAgent(
+                llm,
+                metadata,
+                pool=pool,
+                n_neighbors=3,
+                clinical_column_types=clinical_column_types,
+            ),
             "methylation": MethylationAgent(llm, metadata),
         }
         builder.add_node(_MINER, make_miner_node(llm, agents))
@@ -324,8 +343,8 @@ def build_graph(
         builder.add_node(_GENERATOR, mock_generator)
 
     # Verifier: distributional + LLM scoring, or mock
-    if pool_stats is not None and llm is not None:
-        builder.add_node(_VERIFIER, make_verifier_node(pool_stats, llm))
+    if pool_stats is not None and verifier_llm is not None:
+        builder.add_node(_VERIFIER, make_verifier_node(pool_stats, verifier_llm))
     else:
         builder.add_node(_VERIFIER, mock_verifier)
 
@@ -333,7 +352,12 @@ def build_graph(
     if pipelines:
         builder.add_node(
             _PREDICTOR,
-            make_predictor_node(pipelines, metadata_per_cohort),
+            make_predictor_node(
+                pipelines,
+                metadata_per_cohort,
+                clinical_column_types=clinical_column_types,
+                pool=pool,
+            ),
         )
     else:
         builder.add_node(_PREDICTOR, mock_predictor)

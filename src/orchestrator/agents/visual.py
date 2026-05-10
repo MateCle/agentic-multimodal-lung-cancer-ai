@@ -31,6 +31,11 @@ class VisualAgent(ModalityAgent):
         "interest, so your analysis MUST rely on (a) global embedding "
         "statistics and (b) similarity to reference patients with known "
         "clinical profiles.\n\n"
+        "Neighbour clinical fields are mixed one-hot indicators (name only; "
+        "0/1 or -1/1 with -1 meaning not present) and continuous z-scores "
+        "shown as name=value. Treat negative z-scores as below-cohort mean, "
+        "not as absence. Do not translate z-scores into absolute units or "
+        "label 'heavy/light' exposure unless explicitly encoded.\n\n"
         "Be explicit that conclusions are inferential, not based on "
         "direct image inspection. Avoid asserting specific morphological "
         "features (e.g. 'high tumour cellularity', 'necrotic regions') "
@@ -38,7 +43,7 @@ class VisualAgent(ModalityAgent):
         "the analogy is weak, say so and lower confidence.\n\n"
         "Respond ONLY in JSON with this schema:\n"
         '{"summary": "<3-5 line analogical narrative>", '
-        '"key_features": ["<clinical field name from neighbours>", ...], '
+        '"key_features": ["<clinical field name or name=value>", ...], '
         '"confidence": "high"|"medium"|"low", '
         '"concerns": ["<limitation>", ...]}'
     )
@@ -49,11 +54,13 @@ class VisualAgent(ModalityAgent):
         metadata: dict | None = None,
         pool: list[dict] | None = None,
         n_neighbors: int = 3,
+        clinical_column_types: list[str] | None = None,
     ):
         super().__init__(llm, metadata)
         self.pool = pool or []
         self.n_neighbors = n_neighbors
         self.clinical_columns: list[str] = (metadata or {}).get("clinical_columns", [])
+        self.clinical_column_types = clinical_column_types or []
 
     def _build_prompt(self, features: np.ndarray) -> str:
         if features.size == 0 or not np.any(features):
@@ -123,4 +130,33 @@ class VisualAgent(ModalityAgent):
             return []
         arr = np.asarray(clinical, dtype=np.float32).flatten()
         n = min(len(self.clinical_columns), arr.size)
-        return [self.clinical_columns[i] for i in range(n) if arr[i] != 0]
+        active: list[str] = []
+        tol = 1e-6
+        for i in range(n):
+            val = float(arr[i])
+            name = self.clinical_columns[i]
+            if not np.isfinite(val):
+                continue
+            if self.clinical_column_types:
+                col_type = (
+                    self.clinical_column_types[i]
+                    if i < len(self.clinical_column_types)
+                    else "continuous"
+                )
+                if col_type in ("binary_01", "binary_m11"):
+                    if abs(val - 1.0) < tol:
+                        active.append(name)
+                else:
+                    if abs(val) < tol:
+                        continue
+                    active.append(f"{name}={val:.3g}")
+            else:
+                if abs(val) < tol:
+                    continue
+                if abs(val - 1.0) < tol:
+                    active.append(name)
+                elif abs(val + 1.0) < tol:
+                    continue
+                else:
+                    active.append(f"{name}={val:.3g}")
+        return active

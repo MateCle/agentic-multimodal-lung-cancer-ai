@@ -54,6 +54,8 @@ class PatientState(TypedDict):
     risk_class: str
     # Top-K SHAP features for this patient: list of (feature_name, abs_importance).
     top_shap_features: list
+    # SHAP details with per-feature value context for reporting.
+    shap_feature_details: list
     # Per-modality data provenance: real / generated / zero, with metadata.
     # Consumed by the Language Agent for the clinical report's caveats section.
     source_map: dict

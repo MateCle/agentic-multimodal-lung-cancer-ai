@@ -76,6 +76,7 @@ def run_patient(
         "survival_prediction": None,
         "risk_class": "",
         "top_shap_features": [],
+        "shap_feature_details": [],
         "source_map": {},
         "clinical_report": "",
         "routing_decision": "",
