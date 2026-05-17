@@ -1,12 +1,15 @@
 """
 LangGraph DAG definition for the multimodal lung cancer orchestrator.
-AFM2-aligned core pipeline:
+AFM2-aligned core pipeline (Fig. 4):
 
-  DataLoader -> Planner -> Miner (LLM) -> Generator (k-NN) -> Verifier (LLM) -> Predictor
-                       |                                          ^
-                       | (all present)                            | (self-refinement, max 3)
-                       +---> Predictor                            v
-                                                              Generator
+  DataLoader -> Planner -> Miner -> Verifier-pre -> Generator -> Verifier -> Predictor
+                       |                                              ^
+                       | (all present)                                | (self-refinement, max 3)
+                       +---> Predictor                                v
+                                                                  Generator
+
+  Verifier-pre: reviews Miner's raw rules once, produces refined guidance.
+  Verifier:     scores N candidates (best-of-N), triggers retry if below threshold.
 
 Extensions (added after core works):
     - Modality agents (parallel on multi-GPU)
@@ -53,7 +56,11 @@ from src.orchestrator.nodes.predictor import (
 from src.orchestrator.nodes.router import route_after_planner, route_after_verifier
 from src.orchestrator.nodes.verifier import (
     build_pool_stats,
+    make_pre_verifier_node,
     make_verifier_node,
+)
+from src.orchestrator.nodes.verifier import (
+    pre_verifier_node as mock_pre_verifier,
 )
 from src.orchestrator.nodes.verifier import (
     verifier_node as mock_verifier,
@@ -65,6 +72,7 @@ logger = logging.getLogger(__name__)
 _DATA_LOADER = "data_loader"
 _PLANNER = "planner"
 _MINER = "miner"
+_VERIFIER_PRE = "verifier_pre"
 _GENERATOR = "generator"
 _VERIFIER = "verifier"
 _PREDICTOR = "predictor"
@@ -210,6 +218,8 @@ def _make_data_loader_node(all_data: dict, cohort_map: dict):
             "missing_modalities": record["missing_modalities"],
             "agent_summaries": {},
             "mining_rules": {},
+            "guidance": {},
+            "generation_candidates": {},
             "generated_modalities": {},
             "verification_scores": {},
             "verification_passed": False,
@@ -336,13 +346,20 @@ def build_graph(
     else:
         builder.add_node(_MINER, mock_miner)
 
+    # Pre-Verifier: reviews Miner rules once, produces refined guidance (T=0).
+    # Does not need pool_stats — it calls the LLM on raw text rules only.
+    if verifier_llm is not None:
+        builder.add_node(_VERIFIER_PRE, make_pre_verifier_node(verifier_llm))
+    else:
+        builder.add_node(_VERIFIER_PRE, mock_pre_verifier)
+
     # Generator: LLM-guided k-NN retrieval with pool, or mock
     if pool is not None:
         builder.add_node(_GENERATOR, make_generator_node(pool, llm, metadata))
     else:
         builder.add_node(_GENERATOR, mock_generator)
 
-    # Verifier: distributional + LLM scoring, or mock
+    # Post-Verifier: best-of-N ranker + distributional + LLM scoring, or mock
     if pool_stats is not None and verifier_llm is not None:
         builder.add_node(_VERIFIER, make_verifier_node(pool_stats, verifier_llm))
     else:
@@ -380,7 +397,11 @@ def build_graph(
         {_MINER: _MINER, _PREDICTOR: _PREDICTOR},
     )
 
-    builder.add_edge(_MINER, _GENERATOR)
+    # Miner -> Verifier-pre -> Generator -> Verifier(post)
+    # The self-refinement loop (Verifier -> Generator) skips Verifier-pre
+    # so the refined guidance is computed exactly once per patient.
+    builder.add_edge(_MINER, _VERIFIER_PRE)
+    builder.add_edge(_VERIFIER_PRE, _GENERATOR)
     builder.add_edge(_GENERATOR, _VERIFIER)
 
     builder.add_conditional_edges(

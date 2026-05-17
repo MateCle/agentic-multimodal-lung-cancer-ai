@@ -168,15 +168,16 @@ class TestMockGeneratorNode:
             },
         )
         result = generator_node(state)
-        gen = result["generated_modalities"]
-        assert gen["transcriptomics"].shape == (MODALITY_DIMS["transcriptomics"],)
-        assert gen["wsi"].shape == (MODALITY_DIMS["wsi"],)
-        assert gen["methylation"].shape == (MODALITY_DIMS["methylation"],)
+        # Generator now returns generation_candidates (list per modality)
+        cands = result["generation_candidates"]
+        assert cands["transcriptomics"][0].shape == (MODALITY_DIMS["transcriptomics"],)
+        assert cands["wsi"][0].shape == (MODALITY_DIMS["wsi"],)
+        assert cands["methylation"][0].shape == (MODALITY_DIMS["methylation"],)
 
     def test_no_missing_generates_nothing(self):
         state = _make_state(missing=[])
         result = generator_node(state)
-        assert result["generated_modalities"] == {}
+        assert result["generation_candidates"] == {}
 
 
 # ---------------------------------------------------------------------------
