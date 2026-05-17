@@ -1,6 +1,6 @@
 """
-LangGraph DAG definition for the multimodal lung cancer orchestrator.
-AFM2-aligned core pipeline (Fig. 4):
+LangGraph stateful graph definition for the multimodal lung cancer orchestrator.
+AFM2-aligned core pipeline:
 
   DataLoader -> Planner -> Miner -> Verifier-pre -> Generator -> Verifier -> Predictor
                        |                                              ^
@@ -255,6 +255,7 @@ def build_graph(
     train_patient_ids: list[str] | None = None,
     llm_provider: str | None = None,
     llm_model: str | None = None,
+    n_candidates: int = 3,
 ):
     """
     Build and compile the LangGraph orchestrator.
@@ -355,7 +356,10 @@ def build_graph(
 
     # Generator: LLM-guided k-NN retrieval with pool, or mock
     if pool is not None:
-        builder.add_node(_GENERATOR, make_generator_node(pool, llm, metadata))
+        builder.add_node(
+            _GENERATOR,
+            make_generator_node(pool, llm, metadata, n_candidates=n_candidates),
+        )
     else:
         builder.add_node(_GENERATOR, mock_generator)
 

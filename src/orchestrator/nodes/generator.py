@@ -470,11 +470,18 @@ def _knn_retrieve_candidates_faiss(
     dim = entries[0]["features"][target_modality].size
 
     query_vec = _build_faiss_query(query_features, offsets, total_dim, modality_weights)
-    n_search = min(k * n_candidates + 1, len(entries))
+    # Search full index to guarantee correctness. The per-entry normalization step
+    # (normalising by each entry's available modality weights) can significantly
+    # reorder the raw FAISS ranking, so truncating candidates upfront risks excluding
+    # the correct top-k. For production pools with millions of entries, full search
+    # is still much faster than sklearn brute-force; for smaller pools, correctness
+    # is the priority and the cost is negligible.
+    n_search = len(entries)
 
     distances, idxs = index.search(query_vec.reshape(1, -1), n_search)
     distances = distances[0]
     idxs = idxs[0]
+    
 
     results: list[tuple[float, dict]] = []
     for sim, idx in zip(distances, idxs):
@@ -483,7 +490,16 @@ def _knn_retrieve_candidates_faiss(
         entry = entries[int(idx)]
         if exclude_pid and entry["patient_id"] == exclude_pid:
             continue
-        results.append((float(sim), entry))
+        
+        # Normalize FAISS distance to match _compute_similarity: average instead of sum.
+        # FAISS IndexFlatIP returns sum(w_m * sim_m) over shared modalities, but
+        # _compute_similarity returns sum(w_m * sim_m) / sum(w_m). We must normalize
+        # per-entry because each entry has different available modalities.
+        shared_modalities = [m for m in query_features if m in entry["features_norm"]]
+        total_weight = sum((modality_weights.get(m, 1.0) if modality_weights else 1.0) for m in shared_modalities)
+        normalized_sim = float(sim) / total_weight if total_weight > 0 else float(sim)
+        
+        results.append((normalized_sim, entry))
 
     if not results:
         return [np.zeros(dim, dtype=np.float32)] * n_candidates, []
