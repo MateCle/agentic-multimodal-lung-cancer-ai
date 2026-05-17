@@ -33,6 +33,15 @@ class FittedPipeline:
     # Risk score tertile thresholds computed on training set, for clinical
     # stratification (low/medium/high) by the Language Agent at inference time.
     risk_tertiles: tuple[float, float] | None = None
+    # True MICE-baseline test-set C-index, stored at training time so that
+    # evaluate_orchestrator.py can report the correct reference number
+    # (the in-process IterativeImputer is not serialised).
+    baseline_cindex: float | None = None
+    # Cohort-specific per-modality feature dimensions detected at training
+    # time (e.g. LUSC clinical=56, methylation=16206 vs LUAD 63/16166).
+    # Used by the Predictor to avoid zero-filling real data with the wrong
+    # expected size.  Falls back to MODALITY_DIMS when None (old .joblib).
+    actual_dims: dict | None = None
 
 
 def pipeline_path(cohort: str, model_name: str, imputation: str) -> Path:
@@ -49,6 +58,8 @@ def save_pipeline(
     imputation: str,
     per_modality_transforms: dict | None = None,
     risk_tertiles: tuple[float, float] | None = None,
+    baseline_cindex: float | None = None,
+    actual_dims: dict | None = None,
 ) -> Path:
     """
     Serialize a fitted pipeline to disk.
@@ -80,6 +91,8 @@ def save_pipeline(
         explained_variance=float(pca.explained_variance_ratio_.sum()),
         per_modality_transforms=per_modality_transforms,
         risk_tertiles=risk_tertiles,
+        baseline_cindex=baseline_cindex,
+        actual_dims=actual_dims,
     )
 
     path = pipeline_path(cohort, model_name, imputation)

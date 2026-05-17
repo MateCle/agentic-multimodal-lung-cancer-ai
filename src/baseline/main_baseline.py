@@ -351,7 +351,17 @@ def run_baseline(
         f"{risk_tertiles[0]:.4f} / {risk_tertiles[1]:.4f}"
     )
 
-    # --- Save the fitted pipeline ---
+    # --- Evaluation (computed before save so ci_test can be stored in pipeline) ---
+    print("\n  [Overall Performance]")
+    ci_train = model.score(X_train_pca, y_train)
+    ci_val = model.score(X_val_pca, y_val)
+    ci_test = float(model.score(X_test_pca, y_test))
+
+    print(f"  C-index (train     ): {ci_train:.4f}")
+    print(f"  C-index (val       ): {ci_val:.4f}")
+    print(f"  C-index (test      ): {ci_test:.4f}")
+
+    # --- Save the fitted pipeline (ci_test now available) ---
     per_modality_transforms = imp_extra.get("per_modality_transforms")
     save_pipeline(
         model,
@@ -362,6 +372,8 @@ def run_baseline(
         imputation,
         per_modality_transforms=per_modality_transforms,
         risk_tertiles=risk_tertiles,
+        baseline_cindex=ci_test,
+        actual_dims=actual_dims,
     )
 
     # --- Plots ---
@@ -371,16 +383,6 @@ def run_baseline(
 
     risk_scores_test = model.predict_risk(X_test_pca)
     _plot_kaplan_meier_risk(cohort, tag, y_test, risk_scores_test)  # model+imp
-
-    # --- Evaluation ---
-    print("\n  [Overall Performance]")
-    ci_train = model.score(X_train_pca, y_train)
-    ci_val = model.score(X_val_pca, y_val)
-    ci_test = model.score(X_test_pca, y_test)
-
-    print(f"  C-index (train     ): {ci_train:.4f}")
-    print(f"  C-index (val       ): {ci_val:.4f}")
-    print(f"  C-index (test      ): {ci_test:.4f}")
 
     print("\n  [Breakdown by Modality Completeness - Val Set]")
     completeness_val = c_index_by_completeness(is_complete_val, X_val_pca, y_val, model)

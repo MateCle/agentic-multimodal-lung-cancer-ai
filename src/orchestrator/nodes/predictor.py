@@ -40,18 +40,26 @@ _ACTIVE_MAGNITUDE_THRESHOLD = 0.5
 # ---------------------------------------------------------------------------
 
 
-def _assemble_features(state: PatientState) -> tuple[np.ndarray, dict]:
+def _assemble_features(
+    state: PatientState,
+    actual_dims: dict | None = None,
+) -> tuple[np.ndarray, dict]:
     """
-    Build the 19077-dim raw feature vector for the patient by combining:
+    Build the raw feature vector for the patient by combining:
       - real values from state[modality] when available,
       - generated values from state['generated_modalities'][modality]
         when the Generator produced one,
       - zeros otherwise (last-resort graceful degradation).
 
+    actual_dims overrides MODALITY_DIMS for cohort-specific sizes
+    (e.g. LUSC clinical=56, methylation=16206).  Falls back to
+    MODALITY_DIMS when None (LUAD or old .joblib without stored dims).
+
     Returns:
-        x_raw:      (1, 19077) array.
+        x_raw:      (1, total_dim) array.
         source_map: {modality: source_info_dict} for downstream consumers.
     """
+    dims = actual_dims or MODALITY_DIMS
     blocks: list[np.ndarray] = []
     source_map: dict[str, dict] = {}
 
@@ -64,7 +72,7 @@ def _assemble_features(state: PatientState) -> tuple[np.ndarray, dict]:
         block, info = _build_modality_block(
             state,
             mod,
-            MODALITY_DIMS[mod],
+            dims[mod],
             available,
             generated,
             verification,
@@ -84,15 +92,19 @@ def _assemble_features(state: PatientState) -> tuple[np.ndarray, dict]:
 
 def _apply_pipeline(x_raw: np.ndarray, pipeline: FittedPipeline) -> np.ndarray:
     """
-    Reduce x_raw (1, 19077) to (1, n_components) PCA space using the
-    appropriate path for this pipeline's imputation strategy.
+    Reduce x_raw to (1, n_components) PCA space.
+
+    Uses pipeline.actual_dims (when set) to slice x_raw into per-modality
+    blocks for the MICE path.  Falls back to MODALITY_DIMS for old .joblib
+    files without the field.
     """
     if pipeline.per_modality_transforms:
         # MICE path: per-modality scaler+PCA, concatenate, then global
+        dims = getattr(pipeline, "actual_dims", None) or MODALITY_DIMS
         reduced_blocks: list[np.ndarray] = []
         offset = 0
         for mod in MODALITY_KEYS:
-            dim = MODALITY_DIMS[mod]
+            dim = dims[mod]
             x_mod = x_raw[:, offset : offset + dim]
             offset += dim
             if mod in pipeline.per_modality_transforms:
@@ -387,7 +399,8 @@ def make_predictor_node(
         pipeline = pipelines[cohort]
 
         # 1. Assemble raw features and source map
-        x_raw, source_map = _assemble_features(state)
+        actual_dims = getattr(pipeline, "actual_dims", None)
+        x_raw, source_map = _assemble_features(state, actual_dims)
         _append_source_logs(log_lines, source_map)
 
         # 2. Apply preprocessing path (MICE or direct)
