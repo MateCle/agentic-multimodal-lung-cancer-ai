@@ -283,6 +283,9 @@ class LanguageAgent:
         shap_active_block = self._format_active_shap_block(shap_details)
         shap_details_block = self._format_shap_details_block(shap_details)
         source_block = self._format_source_block(source_map)
+        reliability_block = self._format_reliability_block(
+            state.get("prediction_reliability") or {}
+        )
 
         risk_score_str = (
             f"{risk_score:.4f}" if risk_score is not None else "unavailable"
@@ -300,6 +303,8 @@ class LanguageAgent:
             f"{source_block}\n"
             f"Verification passed: {verification_passed}\n"
             f"Verification scores: {verification_scores}\n\n"
+            f"--- PREDICTION RELIABILITY ---\n"
+            f"{reliability_block}\n\n"
             f"--- AGENT SUMMARIES ---\n"
             f"{agent_block}\n\n"
             f"--- MINING RULES (for missing modalities) ---\n"
@@ -394,7 +399,75 @@ class LanguageAgent:
         if zero_filled:
             notes.append(f"Zero-filled modalities: {', '.join(zero_filled)}.")
 
+        notes.extend(
+            self._build_reliability_caveats(state.get("prediction_reliability") or {})
+        )
         return notes
+
+    @staticmethod
+    def _build_reliability_caveats(reliability: dict) -> list[str]:
+        """Translate prediction_reliability thresholds into human-readable caveats."""
+        if not reliability:
+            return []
+        caveats: list[str] = []
+
+        provenance = reliability.get("provenance_proportion")
+        if provenance is not None and provenance < 0.5:
+            caveats.append(
+                f"Low data provenance: only {provenance * 100:.0f}% of input dimensions "
+                f"came from real modalities; the rest were reconstructed by the Generator."
+            )
+
+        mahal = reliability.get("mahalanobis_ood_distance") or {}
+        pct = mahal.get("percentile_rank")
+        dist = mahal.get("distance")
+        if pct is not None and pct > 90.0:
+            caveats.append(
+                f"Out-of-distribution patient: Mahalanobis distance {dist:.2f} "
+                f"(percentile rank {pct:.0f}) — this patient lies far from the "
+                f"training distribution in PCA-50 space."
+            )
+
+        ci = reliability.get("bootstrap_ci_risk_score") or {}
+        lower, upper = ci.get("lower"), ci.get("upper")
+        if lower is not None and upper is not None and (upper - lower) > 0.3:
+            caveats.append(
+                f"Wide risk-score confidence interval [{lower:.3f}, {upper:.3f}] "
+                f"(95 % bootstrap) — prediction uncertainty is high."
+            )
+
+        return caveats
+
+    @staticmethod
+    def _format_reliability_block(reliability: dict) -> str:
+        """Compact text representation of the reliability dict for the LLM prompt."""
+        if not reliability:
+            return "(reliability data unavailable)"
+
+        provenance = reliability.get("provenance_proportion")
+        mahal = reliability.get("mahalanobis_ood_distance") or {}
+        ci = reliability.get("bootstrap_ci_risk_score") or {}
+
+        lines: list[str] = []
+        if provenance is not None:
+            lines.append(f"Provenance proportion (real dims): {provenance:.3f}")
+        dist = mahal.get("distance")
+        pct = mahal.get("percentile_rank")
+        backend = mahal.get("backend", "n/a")
+        if dist is not None and pct is not None:
+            lines.append(
+                f"Mahalanobis OOD distance: {dist:.3f} "
+                f"(percentile rank: {pct:.1f}, backend: {backend})"
+            )
+        lower = ci.get("lower")
+        upper = ci.get("upper")
+        point = ci.get("point")
+        if lower is not None and upper is not None and point is not None:
+            lines.append(
+                f"Bootstrap 95% CI on risk score: "
+                f"[{lower:.4f}, {upper:.4f}] (point: {point:.4f})"
+            )
+        return "\n".join(lines) if lines else "(reliability data unavailable)"
 
     def _build_overview_section(self, state: dict) -> str:
         pid = state.get("patient_id", "<unknown>")
@@ -455,6 +528,10 @@ class LanguageAgent:
                     f"- The **{mod}** modality was zero-filled "
                     f"(reason: {info.get('reason', 'unknown')})."
                 )
+        for note in self._build_reliability_caveats(
+            state.get("prediction_reliability") or {}
+        ):
+            caveat_lines.append(f"- {note}")
         if not caveat_lines:
             caveat_lines.append("- No major data-quality concerns flagged.")
         return "## Caveats and Limitations\n" + "\n".join(caveat_lines)

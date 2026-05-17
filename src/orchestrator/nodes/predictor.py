@@ -27,6 +27,7 @@ import numpy as np
 from src.baseline.pipeline import FittedPipeline
 from src.data_loader import MODALITY_DIMS, MODALITY_KEYS
 from src.explain import _build_feature_names, compute_shap_for_patient
+from src.orchestrator.reliability import compute_prediction_reliability
 from src.orchestrator.state import PatientState
 
 logger = logging.getLogger(__name__)
@@ -407,7 +408,23 @@ def make_predictor_node(
             f"[Predictor] Risk class: {risk_class} (tertiles={pipeline.risk_tertiles})"
         )
 
-        # 5. Per-patient SHAP with back-projection
+        # 5. Prediction reliability flag
+        try:
+            reliability = compute_prediction_reliability(source_map, x_pca, pipeline)
+            log_lines.append(
+                f"[Predictor] Reliability — provenance={reliability['provenance_proportion']:.2f}, "
+                f"mahal={reliability['mahalanobis_ood_distance']['distance']:.2f} "
+                f"(pct={reliability['mahalanobis_ood_distance']['percentile_rank']:.1f}), "
+                f"CI=[{reliability['bootstrap_ci_risk_score']['lower']:.4f}, "
+                f"{reliability['bootstrap_ci_risk_score']['upper']:.4f}]"
+            )
+        except Exception as exc:
+            log_lines.append(
+                f"[Predictor] Reliability computation failed (non-blocking): {exc}"
+            )
+            reliability = {}
+
+        # 6. Per-patient SHAP with back-projection
         top_features: list[tuple[str, float]] = []
         shap_feature_details: list[dict] = []
         try:
@@ -442,6 +459,7 @@ def make_predictor_node(
             "top_shap_features": top_features,
             "shap_feature_details": shap_feature_details,
             "source_map": source_map,
+            "prediction_reliability": reliability,
             "execution_log": log_lines,
         }
 
@@ -476,6 +494,7 @@ def _mock_response(state: PatientState, log_lines: list[str]) -> dict:
         "top_shap_features": [],
         "shap_feature_details": [],
         "source_map": {},
+        "prediction_reliability": {},
         "execution_log": log_lines,
     }
 
