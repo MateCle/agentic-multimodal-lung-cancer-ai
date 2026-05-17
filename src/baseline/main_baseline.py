@@ -36,6 +36,7 @@ from src.baseline.preprocessing import (
     IMPUTATION_STRATEGIES,
     apply_imputation,
     build_feature_matrix,
+    detect_actual_dims,
 )
 from src.data_loader import (
     MODALITY_KEYS,
@@ -289,10 +290,14 @@ def run_baseline(
 
     all_patients = train_patients + val_patients + test_patients
 
+    # --- Detect cohort-specific modality dims (e.g. LUSC methylation=16206 vs 16166) ---
+    # Derived from training patients so val/test use the identical column layout.
+    actual_dims = detect_actual_dims(train_patients)
+
     # --- Build NaN feature matrices ---
-    X_train, y_train, _ = build_feature_matrix(train_patients)
-    X_val, y_val, is_complete_val = build_feature_matrix(val_patients)
-    X_test, y_test, is_complete_test = build_feature_matrix(test_patients)
+    X_train, y_train, _ = build_feature_matrix(train_patients, actual_dims)
+    X_val, y_val, is_complete_val = build_feature_matrix(val_patients, actual_dims)
+    X_test, y_test, is_complete_test = build_feature_matrix(test_patients, actual_dims)
 
     print(f"  Train: {len(X_train)} patients | Val: {len(X_val)} | Test: {len(X_test)}")
     print(f"  Feature dim: {X_train.shape[1]}")
@@ -309,6 +314,7 @@ def run_baseline(
         X_val=X_val,
         X_test=X_test,
         y_train=y_train,
+        actual_dims=actual_dims,
     )
 
     # --- PCA Dimensionality Reduction ---
