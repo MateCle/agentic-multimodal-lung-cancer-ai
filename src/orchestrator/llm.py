@@ -187,6 +187,7 @@ class OpenAIClient(BaseLLMClient):
     ):
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.temperature = temperature
         if not self.api_key:
             raise ValueError(
                 "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
@@ -212,7 +213,7 @@ class OpenAIClient(BaseLLMClient):
             model=self.model,
             messages=messages,
             temperature=self.temperature,
-            max_tokens=2000,
+            max_tokens=512,
         )
 
         return LLMResponse(
