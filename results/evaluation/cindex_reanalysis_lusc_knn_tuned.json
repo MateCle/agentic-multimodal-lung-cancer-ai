@@ -1,0 +1,19 @@
+{
+  "cohort": "lusc",
+  "n_test": 90,
+  "n_complete": 61,
+  "n_missing": 29,
+  "n_outliers_excluded": 2,
+  "n_complete_filtered": 59,
+  "n_missing_filtered": 29,
+  "orchestrator_cindex": 0.57,
+  "orchestrator_cindex_complete": 0.5331,
+  "orchestrator_cindex_missing": 0.602,
+  "baseline_cindex": 0.6062,
+  "baseline_cindex_complete": 0.6386,
+  "baseline_cindex_missing": 0.4592,
+  "mean_provenance": 0.7635,
+  "mean_mahal_pct": 1.8199,
+  "mean_ci_width": 0.2574,
+  "reanalysis_timestamp": "2026-05-16T12:37:04.177294+00:00"
+}

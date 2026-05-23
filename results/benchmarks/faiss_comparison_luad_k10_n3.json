@@ -1,0 +1,53 @@
+{
+  "cohort": "LUAD",
+  "k": 10,
+  "n_candidates": 3,
+  "warmup_queries": 1,
+  "timed_queries": 16,
+  "pool_size": 253,
+  "pool_dims": {
+    "clinical": 63,
+    "transcriptomics": 1824,
+    "wsi": 1024,
+    "methylation": 16166
+  },
+  "faiss_available": true,
+  "faiss_on_gpu": true,
+  "sklearn_cpu": {
+    "n_queries": 16,
+    "mean_s": 0.003082,
+    "median_s": 0.003063,
+    "p95_s": 0.003614,
+    "total_s": 0.0493
+  },
+  "faiss_cpu": {
+    "n_queries": 16,
+    "mean_s": 0.002507,
+    "median_s": 0.002926,
+    "p95_s": 0.003481,
+    "total_s": 0.0401,
+    "correctness": {
+      "status": "PASS",
+      "n_checked": 16,
+      "n_mismatched": 0,
+      "max_abs_diff": 3.81e-06
+    },
+    "speedup_vs_sklearn": 1.05,
+    "speedup_vs_sklearn_mean": 1.23
+  },
+  "faiss_gpu": {
+    "n_queries": 16,
+    "mean_s": 0.001945,
+    "median_s": 0.002309,
+    "p95_s": 0.002563,
+    "total_s": 0.0311,
+    "correctness": {
+      "status": "PASS",
+      "n_checked": 16,
+      "n_mismatched": 0,
+      "max_abs_diff": 2.86e-06
+    },
+    "speedup_vs_sklearn": 1.33,
+    "speedup_vs_sklearn_mean": 1.58
+  }
+}

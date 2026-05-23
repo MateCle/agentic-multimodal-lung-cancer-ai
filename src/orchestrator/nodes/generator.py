@@ -24,6 +24,7 @@ Usage in graph.py:
 """
 
 import logging
+from collections import Counter, defaultdict
 
 import numpy as np
 
@@ -94,10 +95,19 @@ def _build_pool_entry(pid: str, patient: dict) -> dict:
     return entry
 
 
-def build_pool_index(raw_data: dict, patient_ids: list[str]) -> list[dict]:
+def build_pool_index(
+    raw_data: dict,
+    patient_ids: list[str],
+    cohort_map: dict[str, str] | None = None,
+) -> list[dict]:
     """
     Precompute a retrieval index from training patient IDs.
     Called once at graph build time.
+
+    cohort_map: optional dict[patient_id → cohort_label].  When provided,
+    dim sanitization is performed independently per cohort so that cohort-
+    specific feature sizes (e.g. LUSC clinical=63 vs LUAD clinical=56) are
+    not incorrectly stripped by the dominant-dim logic.
     """
     pool = []
     for pid in patient_ids:
@@ -105,7 +115,65 @@ def build_pool_index(raw_data: dict, patient_ids: list[str]) -> list[dict]:
         if patient is None:
             continue
         pool.append(_build_pool_entry(pid, patient))
+
+    _sanitize_pool_feature_dims(pool, cohort_map=cohort_map)
     return pool
+
+
+def _sanitize_pool_feature_dims(
+    pool: list[dict],
+    cohort_map: dict[str, str] | None = None,
+) -> None:
+    """Enforce per-modality dimensional consistency within the retrieval pool.
+
+    When cohort_map is provided, sanitization runs independently per cohort so
+    that cohort-specific dims (e.g. LUSC methylation=16206 vs LUAD=16166) are
+    not removed by the dominant-dim logic applied across the full pool.
+    """
+    if cohort_map is not None:
+        by_cohort: dict[str, list[dict]] = defaultdict(list)
+        for entry in pool:
+            cohort = cohort_map.get(entry["patient_id"], "unknown")
+            by_cohort[cohort].append(entry)
+        for cohort, entries in by_cohort.items():
+            logger.info("[Generator] Sanitizing pool dims for cohort '%s' (%d entries)", cohort, len(entries))
+            _sanitize_pool_feature_dims(entries, cohort_map=None)
+        return
+
+    dim_counts: dict[str, Counter] = {mod: Counter() for mod in MODALITY_KEYS}
+    for entry in pool:
+        for mod, arr in entry["features"].items():
+            dim_counts[mod][int(np.asarray(arr).size)] += 1
+
+    expected_dims: dict[str, int] = {}
+    for mod in MODALITY_KEYS:
+        if dim_counts[mod]:
+            expected_dims[mod] = dim_counts[mod].most_common(1)[0][0]
+
+    if expected_dims:
+        logger.info("[Generator] Pool expected dims (dominant): %s", expected_dims)
+
+    mismatches: dict[str, list[tuple[str, tuple[int, ...], int]]] = defaultdict(list)
+    for entry in pool:
+        pid = entry["patient_id"]
+        for mod in list(entry["features"].keys()):
+            expected = expected_dims.get(mod)
+            if expected is None:
+                continue
+            feat = np.asarray(entry["features"][mod], dtype=np.float32).flatten()
+            if feat.shape != (expected,):
+                mismatches[mod].append((pid, feat.shape, expected))
+                entry["features"].pop(mod, None)
+                entry["features_norm"].pop(mod, None)
+
+    for mod, rows in mismatches.items():
+        logger.warning(
+            "[Generator] Pool dim mismatch for modality '%s': removed %d malformed "
+            "entries (showing up to 10): %s",
+            mod,
+            len(rows),
+            rows[:10],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -312,18 +380,54 @@ def _knn_retrieve(
 def _average_chunk(
     chunk: list, target_modality: str, dim: int
 ) -> tuple[np.ndarray, list[dict]]:
-    """Weighted average of one k-neighbour chunk → (reconstruction, info)."""
-    weights = np.array([max(sim, 0.0) for sim, _ in chunk], dtype=np.float32)
+    """Weighted average of one k-neighbour chunk → (reconstruction, info).
+    
+    Defensive: skips pool entries whose target_modality vector does not match
+    the expected dimensionality. Logs a warning for each skipped entry so the
+    incident is auditable from the orchestrator execution log.
+    """
+    # First pass: filter out entries with wrong dimensionality
+    valid_chunk = []
+    skipped = []
+    for sim, entry in chunk:
+        feat = entry["features"].get(target_modality)
+        if feat is None:
+            skipped.append((entry["patient_id"], "missing"))
+            continue
+        feat_arr = np.asarray(feat)
+        if feat_arr.shape != (dim,):
+            skipped.append((entry["patient_id"], f"shape={feat_arr.shape}"))
+            continue
+        valid_chunk.append((sim, entry))
+ 
+    if skipped:
+        logger.warning(
+            "[Generator] _average_chunk: skipped %d/%d neighbours for "
+            "modality '%s' (expected dim=%d). Skipped: %s",
+            len(skipped), len(chunk), target_modality, dim, skipped[:5],
+        )
+ 
+    if not valid_chunk:
+        # All neighbours malformed: return zero-fill rather than crash
+        logger.error(
+            "[Generator] _average_chunk: no valid neighbours for modality "
+            "'%s' (expected dim=%d). Returning zero-fill candidate.",
+            target_modality, dim,
+        )
+        return np.zeros(dim, dtype=np.float32), []
+ 
+    # Standard weighted average on the valid subset
+    weights = np.array([max(sim, 0.0) for sim, _ in valid_chunk], dtype=np.float32)
     weight_sum = weights.sum()
     if weight_sum == 0:
-        weights = np.ones(len(chunk), dtype=np.float32) / len(chunk)
+        weights = np.ones(len(valid_chunk), dtype=np.float32) / len(valid_chunk)
     else:
         weights /= weight_sum
-
+ 
     result = np.zeros(dim, dtype=np.float32)
     info: list[dict] = []
-    for w, (sim, entry) in zip(weights, chunk):
-        result += w * entry["features"][target_modality]
+    for w, (sim, entry) in zip(weights, valid_chunk):
+        result += w * np.asarray(entry["features"][target_modality], dtype=np.float32)
         info.append(
             {
                 "patient_id": entry["patient_id"],
@@ -332,7 +436,6 @@ def _average_chunk(
             }
         )
     return result, info
-
 
 def _knn_retrieve_candidates(
     query_features,
@@ -470,7 +573,13 @@ def _knn_retrieve_candidates_faiss(
     dim = entries[0]["features"][target_modality].size
 
     query_vec = _build_faiss_query(query_features, offsets, total_dim, modality_weights)
-    n_search = min(k * n_candidates + 1, len(entries))
+    # Search full index to guarantee correctness. The per-entry normalization step
+    # (normalising by each entry's available modality weights) can significantly
+    # reorder the raw FAISS ranking, so truncating candidates upfront risks excluding
+    # the correct top-k. For production pools with millions of entries, full search
+    # is still much faster than sklearn brute-force; for smaller pools, correctness
+    # is the priority and the cost is negligible.
+    n_search = len(entries)
 
     distances, idxs = index.search(query_vec.reshape(1, -1), n_search)
     distances = distances[0]
@@ -483,7 +592,19 @@ def _knn_retrieve_candidates_faiss(
         entry = entries[int(idx)]
         if exclude_pid and entry["patient_id"] == exclude_pid:
             continue
-        results.append((float(sim), entry))
+
+        # Normalize FAISS distance to match _compute_similarity: average instead of sum.
+        # FAISS IndexFlatIP returns sum(w_m * sim_m) over shared modalities, but
+        # _compute_similarity returns sum(w_m * sim_m) / sum(w_m). We must normalize
+        # per-entry because each entry has different available modalities.
+        shared_modalities = [m for m in query_features if m in entry["features_norm"]]
+        total_weight = sum(
+            (modality_weights.get(m, 1.0) if modality_weights else 1.0)
+            for m in shared_modalities
+        )
+        normalized_sim = float(sim) / total_weight if total_weight > 0 else float(sim)
+
+        results.append((normalized_sim, entry))
 
     if not results:
         return [np.zeros(dim, dtype=np.float32)] * n_candidates, []
@@ -661,6 +782,7 @@ def make_generator_node(
     llm: BaseLLMClient = None,
     metadata: dict = None,
     n_candidates: int = DEFAULT_N_CANDIDATES,
+    cohort_map: dict[str, str] | None = None,
 ):
     """
     Returns a Generator closure following AFM2's Generation Agent.
@@ -680,6 +802,7 @@ def make_generator_node(
         llm:          LLM client (optional — falls back to uniform weights).
         metadata:     Feature name metadata (optional).
         n_candidates: Number of candidates to produce per modality (default 3).
+        cohort_map:   Optional dict[patient_id → cohort] to filter pool by cohort.
     """
     # Detect cohort-specific dims from pool (e.g. LUSC methylation=16206 vs 16166)
     pool_dims = _detect_pool_dims(pool)
@@ -702,6 +825,16 @@ def make_generator_node(
         base_k = BASE_K + (attempt * K_INCREMENT)
 
         query_features = _collect_query_features(state)
+
+        # Filter pool by cohort if cohort_map is available
+        cohort = state.get("cohort")
+        pool_filtered = pool
+        if cohort_map and cohort:
+            pool_filtered = [
+                e for e in pool if cohort_map.get(e["patient_id"]) == cohort
+            ]
+            if not pool_filtered:
+                pool_filtered = pool
 
         if not query_features:
             zero_candidates = {
@@ -752,7 +885,7 @@ def make_generator_node(
                 candidates, neighbors = _knn_retrieve_candidates(
                     query_features=query_features,
                     target_modality=modality,
-                    pool=pool,
+                    pool=pool_filtered,
                     k=k,
                     n_candidates=n_candidates,
                     exclude_pid=pid,

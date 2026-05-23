@@ -28,7 +28,8 @@ Usage in graph.py:
 import logging
 import re
 
-from src.orchestrator.agents import ModalityAgent, run_agents_parallel
+from src.orchestrator.agents import ModalityAgent
+from src.orchestrator.parallel import run_agents_parallel
 from src.orchestrator.llm import BaseLLMClient
 from src.orchestrator.state import PatientState
 

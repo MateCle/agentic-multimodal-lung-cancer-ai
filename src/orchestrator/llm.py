@@ -53,8 +53,9 @@ class MockLLMClient(BaseLLMClient):
     Returns deterministic responses based on keywords in the prompt.
     """
 
-    def __init__(self, model: str = "mock"):
+    def __init__(self, model: str = "mock", temperature: float = 0.3):
         self.model = model
+        self.temperature = temperature
         self._call_count = 0
 
     def invoke(self, prompt: str, system: str = "") -> LLMResponse:
@@ -187,6 +188,7 @@ class OpenAIClient(BaseLLMClient):
     ):
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.temperature = temperature
         if not self.api_key:
             raise ValueError(
                 "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
@@ -212,7 +214,7 @@ class OpenAIClient(BaseLLMClient):
             model=self.model,
             messages=messages,
             temperature=self.temperature,
-            max_tokens=2000,
+            max_tokens=512,
         )
 
         return LLMResponse(

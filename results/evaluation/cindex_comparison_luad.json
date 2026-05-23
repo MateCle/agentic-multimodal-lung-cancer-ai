@@ -1,0 +1,14 @@
+{
+  "cohort": "luad",
+  "n_test": 94,
+  "n_complete": 73,
+  "n_missing": 21,
+  "orchestrator_cindex": 0.6352,
+  "baseline_cindex": 0.626,
+  "baseline_source": "mice_stored",
+  "delta_cindex": 0.0092,
+  "mean_provenance": 0.9017,
+  "mean_mahal_pct": 5.1999,
+  "mean_ci_width": 0.3315,
+  "timestamp": "2026-05-15T19:43:24.661416+00:00"
+}

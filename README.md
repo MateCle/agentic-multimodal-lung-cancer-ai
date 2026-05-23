@@ -9,22 +9,23 @@ In clinical reality, patient records are often incomplete. This project addresse
 The orchestrator is built as a LangGraph stateful directed graph with bounded self-refinement. Data flows between nodes via a strictly typed `PatientState`. The pipeline consists of six nodes with two conditional branching points:
 
 ```
-DataLoader → Planner → Miner → Generator → Verifier → Predictor
-                  |                             |
-                  | (all modalities present)     | (quality check failed,
-                  +→ Predictor                  +→ Generator (retry,
-                                                   max 3 attempts)
+DataLoader → Planner → Miner → PreVerifier → Generator → Verifier → Predictor
+                  |                                  |
+                  | (all modalities present)          | (quality check failed,
+                  +→ Predictor                       +→ Generator (retry,
+                                                        max 3 attempts)
 ```
 
-1. **DataLoader:** Entry point. Loads a patient's multimodal record from the preloaded TCGA cohort data and populates the shared state with raw feature arrays and modality availability flags.
+1. **DataLoader:** Entry point. Loads a patient's multimodal record from the preloaded TCGA cohort data and populates the shared state with raw feature arrays and modality availability flags. Supports forced-missing modalities for ablation experiments.
 2. **Planner:** Inspects which modalities are available and which are missing. Routes to the Miner if any modality is absent, or directly to the Predictor if all modalities are present.
 3. **Miner (LLM):** Calls an LLM (Qwen2.5-7B-Instruct via vLLM) to reason about cross-modal biological relationships and produce mining rules for each missing modality, following AFM2's Miner Agent pattern.
-4. **Generator (LLM + k-NN):** Uses the LLM to interpret mining rules into modality weights, then performs k-NN retrieval over the training pool with weighted cosine similarity to reconstruct missing features.
-5. **Verifier (LLM):** Performs a distributional check followed by LLM-based multi-criteria quality scoring (6 clinical criteria, each 0-5, following AFM2). Implements a self-refinement loop: if the overall score falls below threshold (4.0), execution routes back to the Generator with correction hints (up to 3 attempts).
-6. **Predictor:** Assembles all features (real + generated) and runs the fitted baseline pipeline (scaler → PCA → survival model) for the final risk score prediction.
+4. **PreVerifier:** Generates N candidate reconstructions in parallel and scores each with the Verifier, passing only the best-scoring candidate to the Generator for final retrieval.
+5. **Generator (LLM + FAISS k-NN):** Uses the LLM to interpret mining rules into modality weights, then performs FAISS-accelerated k-NN retrieval over the training pool with weighted cosine similarity to reconstruct missing features. Supports independent temperature control for generation diversity.
+6. **Verifier (LLM):** Performs a distributional check followed by LLM-based multi-criteria quality scoring (6 clinical criteria, each 0-5, following AFM2). Implements a self-refinement loop: if the overall score falls below threshold (4.0), execution routes back to the Generator with correction hints (up to 3 attempts).
+7. **Predictor:** Assembles all features (real + generated) and runs the fitted baseline pipeline (scaler → PCA → survival model) for the final risk score prediction. Attaches prediction reliability metadata: bootstrap 95% CI on the risk score, Mahalanobis OOD distance, and modality provenance fraction.
 
 ### LLM Usage
-Three nodes use the LLM (Miner, Generator, Verifier). The remaining nodes (DataLoader, Planner, Predictor) are deterministic. The system supports three LLM providers via a unified client:
+Three nodes use the LLM (Miner, Generator, Verifier). The remaining nodes are deterministic. The system supports three LLM providers via a unified client:
 - **Local vLLM** (Qwen2.5-7B-Instruct on AAU AI-LAB) — primary mode
 - **OpenAI API** (GPT-4o) — alternative
 - **Mock** — deterministic responses for testing without GPU
@@ -40,34 +41,67 @@ Evaluation uses the Harrell C-index as the sole metric (binary AUC is methodolog
 
 ```text
 project/
-├── data/                      # IGNORED BY GIT — .pkl and .json data files
-├── models/                    # IGNORED BY GIT — Fitted pipeline .joblib files
-├── notebooks/                 # Jupyter notebooks for EDA and prototyping
-├── scripts/                   # Utility and SLURM scripts
-│   └── run_orchestrator.sh    # SLURM batch script for AI-LAB (vLLM + orchestrator)
+├── data/                          # IGNORED BY GIT — .pkl and .json data files
+├── models/                        # IGNORED BY GIT — Fitted pipeline .joblib files
+├── notebooks/                     # Jupyter notebooks for EDA and prototyping
+├── scripts/                       # SLURM batch and utility scripts
+│   ├── run_orchestrator.sh        # Single-patient orchestrator job (vLLM + orchestrator)
+│   ├── run_evaluation.sh          # Full evaluation job (LUAD + LUSC)
+│   ├── run_evaluation_n1.sh       # Ablation: N=1 candidate
+│   ├── run_evaluation_n5.sh       # Ablation: N=5 candidates
+│   ├── run_evaluation_t0.sh       # Ablation: temperature=0 (deterministic)
+│   ├── run_synthetic_missing.sh   # Synthetic missing-modality reconstruction job
+│   ├── run_faiss_benchmark.sh     # FAISS vs sklearn k-NN benchmark job
+│   ├── run_exp2.sh                # HPC data-parallelism experiment (multi-GPU)
+│   ├── benchmark.sh               # HPC task-parallelism benchmark (Exp 1)
+│   ├── analyze_hpc.sh             # Post-hoc HPC result analysis
+│   ├── generate_report_plots.py   # Figure generation from evaluation results
+│   ├── batch_baseline.py          # Batch runner for all baseline model/imputation combos
+│   └── orchestrator.py            # Standalone orchestrator runner script
 ├── src/
-│   ├── data_loader.py         # Multimodal data ingestion, shape validation, splits
-│   ├── baseline/              # ML baseline for survival prediction
-│   │   ├── main_baseline.py   # Full pipeline: Load → Impute → PCA-50 → Model → C-index
-│   │   ├── models.py          # CoxPH, CoxNet, RSF, XGBoost survival models
-│   │   ├── preprocessing.py   # Imputation strategies (zero, KNN, MICE) + feature matrix
-│   │   ├── explain.py         # SHAP with PCA back-projection to original features
-│   │   └── pipeline.py        # Serialize/load fitted (model, scaler, PCA) pipelines
-│   └── orchestrator/          # LangGraph multi-agent system
-│       ├── llm.py             # Unified LLM client (OpenAI, Anthropic, vLLM, Mock)
-│       ├── graph.py           # DAG definition, node wiring, conditional routing
-│       ├── state.py           # TypedDict defining the shared PatientState
-│       ├── run.py             # CLI entry point for the orchestrator
-│       └── nodes/             # Individual node implementations
-│           ├── planner.py     # Routing decision based on modality availability
-│           ├── miner.py       # LLM-based cross-modal mining rule generation
-│           ├── generator.py   # LLM-guided k-NN retrieval for missing modalities
-│           ├── verifier.py    # Multi-criteria LLM scoring + self-refinement
-│           ├── predictor.py   # Survival prediction via fitted baseline pipeline
-│           └── router.py      # Conditional edge functions for DAG branching
-├── tests/                     # Unit and integration tests (pytest)
-├── results/                   # JSON metric logs (committed), PNG plots (gitignored)
-├── requirements.txt           # Project dependencies
+│   ├── data_loader.py             # Multimodal data ingestion, shape validation, splits
+│   ├── explain.py                 # SHAP with PCA back-projection to original features
+│   ├── baseline/                  # ML baseline for survival prediction
+│   │   ├── main_baseline.py       # Full pipeline: Load → Impute → PCA-50 → Model → C-index
+│   │   ├── models.py              # CoxPH, CoxNet, RSF, XGBoost survival models
+│   │   ├── preprocessing.py       # Imputation strategies (zero, KNN, MICE) + feature matrix
+│   │   └── pipeline.py            # Serialize/load fitted (model, scaler, PCA) pipelines
+│   ├── evaluation/                # Evaluation and benchmarking tools
+│   │   ├── evaluate_orchestrator.py   # End-to-end C-index evaluation vs baseline
+│   │   ├── synthetic_missing_eval.py  # Reconstruction accuracy under forced missing modalities
+│   │   ├── reanalyze_results.py       # Offline reanalysis of saved per-patient CSVs
+│   │   ├── benchmark_hpc.py           # HPC task/data parallelism benchmarks
+│   │   ├── benchmark_faiss.py         # FAISS vs sklearn retrieval timing and accuracy
+│   │   ├── analyze_hpc.py             # HPC result parsing and summary tables
+│   │   └── profile_faiss.py           # FAISS retrieval profiling
+│   └── orchestrator/              # LangGraph multi-agent system
+│       ├── llm.py                 # Unified LLM client (OpenAI, vLLM, Mock)
+│       ├── graph.py               # DAG definition, node wiring, conditional routing
+│       ├── state.py               # TypedDict defining the shared PatientState
+│       ├── run.py                 # CLI entry point for the orchestrator
+│       ├── parallel.py            # Parallel agent execution utility
+│       ├── reliability.py         # Bootstrap CI, Mahalanobis OOD, provenance scoring
+│       ├── agents/                # Modality-specific sub-agents (used by Miner/Generator)
+│       │   ├── base.py            # Abstract base agent
+│       │   ├── clinical.py        # Clinical modality agent
+│       │   ├── genomic.py         # Transcriptomics modality agent
+│       │   ├── visual.py          # WSI modality agent
+│       │   ├── methylation.py     # Methylation modality agent
+│       │   └── language.py        # LLM language reasoning agent
+│       └── nodes/                 # LangGraph node implementations
+│           ├── planner.py         # Routing decision based on modality availability
+│           ├── miner.py           # LLM-based cross-modal mining rule generation
+│           ├── generator.py       # LLM-guided FAISS k-NN retrieval for missing modalities
+│           ├── verifier.py        # Multi-criteria LLM scoring + self-refinement
+│           ├── predictor.py       # Survival prediction + reliability metadata
+│           └── router.py          # Conditional edge functions for DAG branching
+├── tests/                         # Unit and integration tests (pytest)
+├── results/                       # Metric logs (committed), PNG plots (gitignored)
+│   ├── baseline_results_*.json    # Baseline C-index per model/imputation combination
+│   ├── benchmarks/                # FAISS vs sklearn comparison results
+│   ├── evaluation/                # Orchestrator C-index results and per-patient CSVs
+│   └── hpc/                       # HPC parallelism experiment results
+├── requirements.txt               # Project dependencies
 └── README.md
 ```
 
@@ -117,11 +151,8 @@ data/
 
 ### Run the ML Baseline
 ```bash
-# Default: CoxPH + zero imputation
-python -m src.baseline.main_baseline
-
 # Specific model + imputation + SHAP
-python -m src.baseline.main_baseline --model xgboost --imputation knn --shap
+python -m src.baseline.main_baseline --model coxnet --imputation mice --shap
 ```
 Outputs C-index metrics to `results/` and diagnostic plots.
 
@@ -134,12 +165,36 @@ python -m src.orchestrator.run --patient TCGA-05-4244 --verbose --mock
 
 **Real mode (requires vLLM server running):**
 ```bash
-python -m src.orchestrator.run --patient TCGA-05-4244 --verbose
+python -m src.orchestrator.run --patient TCGA-XX-XXXX --verbose
 ```
 
 **Multiple patients:**
 ```bash
 python -m src.orchestrator.run --n-patients 5 --verbose
+```
+
+### Run the Orchestrator Evaluation
+
+Computes C-index for the full test split and compares against the CoxNet+MICE baseline.
+
+**Mock mode (no GPU):**
+```bash
+python -m src.evaluation.evaluate_orchestrator --cohort luad --mock
+```
+
+**Real mode (requires vLLM server running):**
+```bash
+python -m src.evaluation.evaluate_orchestrator --cohort luad
+python -m src.evaluation.evaluate_orchestrator --cohort lusc
+```
+
+Outputs JSON summary and per-patient CSV to `results/evaluation/`.
+
+### Run Synthetic Missing-Modality Evaluation
+
+Masks each modality in turn and measures reconstruction accuracy vs. ground truth:
+```bash
+python -m src.evaluation.synthetic_missing_eval --cohort luad
 ```
 
 ## AI-LAB Setup (AAU HPC)
@@ -193,6 +248,8 @@ The SLURM script (`scripts/run_orchestrator.sh`) automatically:
 ```bash
 pytest tests/ -v
 ```
+
+All tests use a mock LLM client and synthetic data — no GPU or TCGA files required. The CI pipeline (GitHub Actions) runs the test suite automatically on every push and pull request to `main` and `dev`, excluding GPU-dependent and data-dependent tests.
 
 ## Data Classification
 TCGA data is Level 1 (publicly available, de-identified) under AAU's data classification model. AI-LAB is appropriate for this data.

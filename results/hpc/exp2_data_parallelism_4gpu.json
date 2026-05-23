@@ -1,0 +1,975 @@
+{
+  "experiment": 2,
+  "name": "data_parallelism_inter_patient",
+  "config": {
+    "scaling_mode": "strong",
+    "vllm_endpoints": [
+      "http://localhost:8000/v1",
+      "http://localhost:8001/v1",
+      "http://localhost:8002/v1",
+      "http://localhost:8003/v1"
+    ],
+    "workers_list": [
+      1,
+      2,
+      4
+    ],
+    "n_patients_per_run": 32
+  },
+  "runs": [
+    {
+      "n_workers": 1,
+      "endpoints": [
+        "http://localhost:8000/v1"
+      ],
+      "scaling_mode": "strong",
+      "total_patients_processed": 32,
+      "wall_seconds": 411.2977110390202,
+      "worker_results": [
+        {
+          "patient_id": "TCGA-99-8033",
+          "total_wall": 9.41705406398978,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-1594",
+          "total_wall": 6.6083955859648995,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-A4P7",
+          "total_wall": 6.6628203360014595,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-78-7150",
+          "total_wall": 6.782508603995666,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-97-8175",
+          "total_wall": 6.596100517024752,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-8281",
+          "total_wall": 6.671506166981999,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-99-8025",
+          "total_wall": 6.489274988998659,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-50-7109",
+          "total_wall": 6.397431678022258,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-91-6830",
+          "total_wall": 6.716401055979077,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-69-7973",
+          "total_wall": 6.378058306057937,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-97-8547",
+          "total_wall": 6.452612082008272,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-8096",
+          "total_wall": 6.771561544039287,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7994",
+          "total_wall": 6.496338564029429,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-05-4249",
+          "total_wall": 6.866406961984467,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-49-6742",
+          "total_wall": 6.929939636029303,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7284",
+          "total_wall": 6.5874726420152,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-MP-A5C7",
+          "total_wall": 6.5447718590148725,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-64-5779",
+          "total_wall": 6.584514226007741,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7914",
+          "total_wall": 6.690758234995883,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-78-7147",
+          "total_wall": 6.609240642981604,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-49-4507",
+          "total_wall": 6.7163198459893465,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7815",
+          "total_wall": 6.551726076984778,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-8092",
+          "total_wall": 6.797839345003013,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-MP-A4SY",
+          "total_wall": 6.364914459991269,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-69-7764",
+          "total_wall": 6.658554831985384,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-6970",
+          "total_wall": 6.535749992995989,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-44-A4SU",
+          "total_wall": 6.635884977993555,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-L9-A5IP",
+          "total_wall": 6.773243999981787,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-05-4432",
+          "total_wall": 6.470343208988197,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-A4P8",
+          "total_wall": 6.93744120397605,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-44-2666",
+          "total_wall": 6.471275401010644,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-91-6836",
+          "total_wall": 6.53519636602141,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        }
+      ]
+    },
+    {
+      "n_workers": 2,
+      "endpoints": [
+        "http://localhost:8000/v1",
+        "http://localhost:8001/v1"
+      ],
+      "scaling_mode": "strong",
+      "total_patients_processed": 32,
+      "wall_seconds": 187.5959162049694,
+      "worker_results": [
+        {
+          "patient_id": "TCGA-99-8033",
+          "total_wall": 6.881992214999627,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-A4P7",
+          "total_wall": 6.393641791015398,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-97-8175",
+          "total_wall": 6.2601189709967,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-99-8025",
+          "total_wall": 6.770827776985243,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-91-6830",
+          "total_wall": 6.924914931005333,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-97-8547",
+          "total_wall": 7.031618206005078,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7994",
+          "total_wall": 6.684846720017958,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-49-6742",
+          "total_wall": 6.749923245050013,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-MP-A5C7",
+          "total_wall": 6.561638973013032,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7914",
+          "total_wall": 6.57004484400386,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-49-4507",
+          "total_wall": 6.706677337992005,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-8092",
+          "total_wall": 6.622939782042522,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-69-7764",
+          "total_wall": 6.921648075978737,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-44-A4SU",
+          "total_wall": 7.697493651998229,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-05-4432",
+          "total_wall": 6.617422831011936,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-44-2666",
+          "total_wall": 6.652601248002611,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-1594",
+          "total_wall": 6.933944692951627,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-78-7150",
+          "total_wall": 6.349751831032336,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-8281",
+          "total_wall": 6.405499332991894,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-50-7109",
+          "total_wall": 6.877500762988348,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-69-7973",
+          "total_wall": 6.87969889503438,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-8096",
+          "total_wall": 6.5885412680218,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-05-4249",
+          "total_wall": 6.856928854016587,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7284",
+          "total_wall": 6.512985700042918,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-64-5779",
+          "total_wall": 6.929974139027763,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-78-7147",
+          "total_wall": 7.38208992901491,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7815",
+          "total_wall": 6.968953642994165,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-MP-A4SY",
+          "total_wall": 7.217062945012003,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-6970",
+          "total_wall": 6.881307632022072,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-L9-A5IP",
+          "total_wall": 6.690190877998248,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-A4P8",
+          "total_wall": 6.768903672986198,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-91-6836",
+          "total_wall": 6.855340075970162,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        }
+      ]
+    },
+    {
+      "n_workers": 4,
+      "endpoints": [
+        "http://localhost:8000/v1",
+        "http://localhost:8001/v1",
+        "http://localhost:8002/v1",
+        "http://localhost:8003/v1"
+      ],
+      "scaling_mode": "strong",
+      "total_patients_processed": 32,
+      "wall_seconds": 97.61121017299592,
+      "worker_results": [
+        {
+          "patient_id": "TCGA-55-1594",
+          "total_wall": 7.618789993051905,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-8281",
+          "total_wall": 6.876836213981733,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-69-7973",
+          "total_wall": 6.652569211029913,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-05-4249",
+          "total_wall": 6.893973891972564,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-64-5779",
+          "total_wall": 7.218628526024986,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7815",
+          "total_wall": 7.048447077977471,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-6970",
+          "total_wall": 6.695145081030205,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-A4P8",
+          "total_wall": 6.6402470269822516,
+          "ok": true,
+          "error": null,
+          "worker_idx": 1,
+          "endpoint": "http://localhost:8001/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-78-7150",
+          "total_wall": 7.666563395992853,
+          "ok": true,
+          "error": null,
+          "worker_idx": 3,
+          "endpoint": "http://localhost:8003/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-50-7109",
+          "total_wall": 7.200173700985033,
+          "ok": true,
+          "error": null,
+          "worker_idx": 3,
+          "endpoint": "http://localhost:8003/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-8096",
+          "total_wall": 6.766340080008376,
+          "ok": true,
+          "error": null,
+          "worker_idx": 3,
+          "endpoint": "http://localhost:8003/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7284",
+          "total_wall": 7.04679287300678,
+          "ok": true,
+          "error": null,
+          "worker_idx": 3,
+          "endpoint": "http://localhost:8003/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-78-7147",
+          "total_wall": 6.5531352500547655,
+          "ok": true,
+          "error": null,
+          "worker_idx": 3,
+          "endpoint": "http://localhost:8003/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-MP-A4SY",
+          "total_wall": 6.90308419795474,
+          "ok": true,
+          "error": null,
+          "worker_idx": 3,
+          "endpoint": "http://localhost:8003/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-L9-A5IP",
+          "total_wall": 6.731908563000616,
+          "ok": true,
+          "error": null,
+          "worker_idx": 3,
+          "endpoint": "http://localhost:8003/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-91-6836",
+          "total_wall": 6.845832050021272,
+          "ok": true,
+          "error": null,
+          "worker_idx": 3,
+          "endpoint": "http://localhost:8003/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-99-8033",
+          "total_wall": 6.827011929010041,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-97-8175",
+          "total_wall": 6.988331608998124,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-91-6830",
+          "total_wall": 6.85808520403225,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7994",
+          "total_wall": 6.915908468014095,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-MP-A5C7",
+          "total_wall": 7.107275254034903,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-49-4507",
+          "total_wall": 7.003565285005607,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-69-7764",
+          "total_wall": 7.1045484589994885,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-05-4432",
+          "total_wall": 6.865438303037081,
+          "ok": true,
+          "error": null,
+          "worker_idx": 0,
+          "endpoint": "http://localhost:8000/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-86-A4P7",
+          "total_wall": 8.075409857963677,
+          "ok": true,
+          "error": null,
+          "worker_idx": 2,
+          "endpoint": "http://localhost:8002/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-99-8025",
+          "total_wall": 7.46671668504132,
+          "ok": true,
+          "error": null,
+          "worker_idx": 2,
+          "endpoint": "http://localhost:8002/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-97-8547",
+          "total_wall": 7.355617789959069,
+          "ok": true,
+          "error": null,
+          "worker_idx": 2,
+          "endpoint": "http://localhost:8002/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-49-6742",
+          "total_wall": 6.571083165996242,
+          "ok": true,
+          "error": null,
+          "worker_idx": 2,
+          "endpoint": "http://localhost:8002/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-7914",
+          "total_wall": 6.905118970025796,
+          "ok": true,
+          "error": null,
+          "worker_idx": 2,
+          "endpoint": "http://localhost:8002/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-55-8092",
+          "total_wall": 6.737674043979496,
+          "ok": true,
+          "error": null,
+          "worker_idx": 2,
+          "endpoint": "http://localhost:8002/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-44-A4SU",
+          "total_wall": 7.266611416998785,
+          "ok": true,
+          "error": null,
+          "worker_idx": 2,
+          "endpoint": "http://localhost:8002/v1",
+          "return_code": 0
+        },
+        {
+          "patient_id": "TCGA-44-2666",
+          "total_wall": 7.049971294007264,
+          "ok": true,
+          "error": null,
+          "worker_idx": 2,
+          "endpoint": "http://localhost:8002/v1",
+          "return_code": 0
+        }
+      ]
+    }
+  ],
+  "gpu_snapshot_after": {
+    "timestamp": 1779469207.2478807,
+    "gpus": [
+      {
+        "gpu": 0,
+        "util_pct": 72,
+        "mem_used_mb": 6462,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 1,
+        "util_pct": 60,
+        "mem_used_mb": 237,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 2,
+        "util_pct": 0,
+        "mem_used_mb": 15737,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 3,
+        "util_pct": 0,
+        "mem_used_mb": 15737,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 4,
+        "util_pct": 0,
+        "mem_used_mb": 15737,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 5,
+        "util_pct": 0,
+        "mem_used_mb": 3,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 6,
+        "util_pct": 0,
+        "mem_used_mb": 15737,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 7,
+        "util_pct": 0,
+        "mem_used_mb": 283,
+        "mem_total_mb": 23034
+      }
+    ]
+  }
+}
