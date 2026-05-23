@@ -1,0 +1,19 @@
+{
+  "cohort": "luad",
+  "n_test": 94,
+  "n_complete": 73,
+  "n_missing": 21,
+  "n_outliers_excluded": 1,
+  "orchestrator_cindex": 0.6141,
+  "orchestrator_cindex_complete": 0.66,
+  "orchestrator_cindex_missing": 0.5366,
+  "baseline_cindex": 0.626,
+  "baseline_cindex_complete": null,
+  "baseline_cindex_missing": null,
+  "baseline_source": "mice_stored",
+  "delta_cindex": -0.0119,
+  "mean_provenance": 0.9017,
+  "mean_mahal_pct": 5.1999,
+  "mean_ci_width": 0.3315,
+  "timestamp": "2026-05-19T18:31:57.973899+00:00"
+}

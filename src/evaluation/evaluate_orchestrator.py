@@ -18,7 +18,6 @@ import argparse
 import csv
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -273,17 +272,26 @@ def run_evaluation(
 
     # --- FIX 1: Outlier filtering ---
     # Filter out patients with |risk_score| > threshold before C-index calculation
-    outlier_mask = [abs(score) <= RISK_SCORE_OUTLIER_THRESHOLD for score in orchestrator_scores]
+    outlier_mask = [
+        abs(score) <= RISK_SCORE_OUTLIER_THRESHOLD for score in orchestrator_scores
+    ]
     n_outliers_excluded = sum(1 for m in outlier_mask if not m)
     if n_outliers_excluded > 0:
-        logger.warning("Excluding %d outlier patients (|risk_score| > %.1f) from C-index calculation.", 
-                      n_outliers_excluded, RISK_SCORE_OUTLIER_THRESHOLD)
-        for i, (score, pid) in enumerate(zip(orchestrator_scores, [r["patient_id"] for r in rows])):
+        logger.warning(
+            "Excluding %d outlier patients (|risk_score| > %.1f) from C-index calculation.",
+            n_outliers_excluded,
+            RISK_SCORE_OUTLIER_THRESHOLD,
+        )
+        for i, (score, pid) in enumerate(
+            zip(orchestrator_scores, [r["patient_id"] for r in rows])
+        ):
             if not outlier_mask[i]:
                 logger.warning("  Outlier: %s (score=%.4f)", pid, score)
-    
+
     # Apply mask to all lists
-    orchestrator_scores_filtered = [s for s, m in zip(orchestrator_scores, outlier_mask) if m]
+    orchestrator_scores_filtered = [
+        s for s, m in zip(orchestrator_scores, outlier_mask) if m
+    ]
     baseline_scores_filtered = [b for b, m in zip(baseline_scores, outlier_mask) if m]
     events_filtered = [e for e, m in zip(events, outlier_mask) if m]
     times_filtered = [t for t, m in zip(times, outlier_mask) if m]
@@ -293,13 +301,17 @@ def run_evaluation(
     n_test = len(rows)
     n_complete = sum(1 for r in rows if r["n_missing"] == 0)
 
-    orchestrator_cindex = _safe_cindex(orchestrator_scores_filtered, events_filtered, times_filtered, "orchestrator")
+    orchestrator_cindex = _safe_cindex(
+        orchestrator_scores_filtered, events_filtered, times_filtered, "orchestrator"
+    )
 
     # Prefer the true MICE baseline test C-index stored in the pipeline
     # (computed in main_baseline.py with the fitted IterativeImputer, which
     # is NOT persisted to disk).  Fall back to the zero-fill computed baseline
     # only when the field is absent (old .joblib before this change).
-    stored_mice_cindex = getattr(pipeline, "baseline_cindex", None) if pipeline is not None else None
+    stored_mice_cindex = (
+        getattr(pipeline, "baseline_cindex", None) if pipeline is not None else None
+    )
 
     if stored_mice_cindex is not None:
         baseline_cindex = float(stored_mice_cindex)
@@ -313,7 +325,12 @@ def run_evaluation(
             not np.isnan(b) for b in baseline_scores_filtered
         )
         baseline_cindex = (
-            _safe_cindex(baseline_scores_filtered, events_filtered, times_filtered, "baseline_zero_fill")
+            _safe_cindex(
+                baseline_scores_filtered,
+                events_filtered,
+                times_filtered,
+                "baseline_zero_fill",
+            )
             if all_baseline_valid
             else float("nan")
         )
@@ -335,37 +352,86 @@ def run_evaluation(
     # Split filtered rows into complete and incomplete
     rows_complete_filtered = [r for r in rows_for_metrics if r["n_missing"] == 0]
     rows_missing_filtered = [r for r in rows_for_metrics if r["n_missing"] > 0]
-    
+
     if rows_complete_filtered:
         orch_scores_complete = [r["risk_score"] for r in rows_complete_filtered]
         events_complete = [r["event"] for r in rows_complete_filtered]
         times_complete = [r["time"] for r in rows_complete_filtered]
-        cindex_complete = _safe_cindex(orch_scores_complete, events_complete, times_complete, "orchestrator_complete")
+        cindex_complete = _safe_cindex(
+            orch_scores_complete,
+            events_complete,
+            times_complete,
+            "orchestrator_complete",
+        )
     else:
         cindex_complete = float("nan")
-    
+
     if rows_missing_filtered:
         orch_scores_missing = [r["risk_score"] for r in rows_missing_filtered]
         events_missing = [r["event"] for r in rows_missing_filtered]
         times_missing = [r["time"] for r in rows_missing_filtered]
-        cindex_missing = _safe_cindex(orch_scores_missing, events_missing, times_missing, "orchestrator_missing")
+        cindex_missing = _safe_cindex(
+            orch_scores_missing, events_missing, times_missing, "orchestrator_missing"
+        )
     else:
         cindex_missing = float("nan")
-    
+
     # Baseline subgroup C-index (using filtered baseline_scores and events)
     if rows_complete_filtered and stored_mice_cindex is None:
-        baseline_scores_complete = [baseline_scores_filtered[i] for i, r in enumerate(rows_for_metrics) if r in rows_complete_filtered]
-        events_complete_all = [events_filtered[i] for i, r in enumerate(rows_for_metrics) if r in rows_complete_filtered]
-        times_complete_all = [times_filtered[i] for i, r in enumerate(rows_for_metrics) if r in rows_complete_filtered]
-        baseline_cindex_complete = _safe_cindex(baseline_scores_complete, events_complete_all, times_complete_all, "baseline_complete") if all(not np.isnan(b) for b in baseline_scores_complete) else float("nan")
+        baseline_scores_complete = [
+            baseline_scores_filtered[i]
+            for i, r in enumerate(rows_for_metrics)
+            if r in rows_complete_filtered
+        ]
+        events_complete_all = [
+            events_filtered[i]
+            for i, r in enumerate(rows_for_metrics)
+            if r in rows_complete_filtered
+        ]
+        times_complete_all = [
+            times_filtered[i]
+            for i, r in enumerate(rows_for_metrics)
+            if r in rows_complete_filtered
+        ]
+        baseline_cindex_complete = (
+            _safe_cindex(
+                baseline_scores_complete,
+                events_complete_all,
+                times_complete_all,
+                "baseline_complete",
+            )
+            if all(not np.isnan(b) for b in baseline_scores_complete)
+            else float("nan")
+        )
     else:
         baseline_cindex_complete = float("nan")
-    
+
     if rows_missing_filtered and stored_mice_cindex is None:
-        baseline_scores_missing = [baseline_scores_filtered[i] for i, r in enumerate(rows_for_metrics) if r in rows_missing_filtered]
-        events_missing_all = [events_filtered[i] for i, r in enumerate(rows_for_metrics) if r in rows_missing_filtered]
-        times_missing_all = [times_filtered[i] for i, r in enumerate(rows_for_metrics) if r in rows_missing_filtered]
-        baseline_cindex_missing = _safe_cindex(baseline_scores_missing, events_missing_all, times_missing_all, "baseline_missing") if all(not np.isnan(b) for b in baseline_scores_missing) else float("nan")
+        baseline_scores_missing = [
+            baseline_scores_filtered[i]
+            for i, r in enumerate(rows_for_metrics)
+            if r in rows_missing_filtered
+        ]
+        events_missing_all = [
+            events_filtered[i]
+            for i, r in enumerate(rows_for_metrics)
+            if r in rows_missing_filtered
+        ]
+        times_missing_all = [
+            times_filtered[i]
+            for i, r in enumerate(rows_for_metrics)
+            if r in rows_missing_filtered
+        ]
+        baseline_cindex_missing = (
+            _safe_cindex(
+                baseline_scores_missing,
+                events_missing_all,
+                times_missing_all,
+                "baseline_missing",
+            )
+            if all(not np.isnan(b) for b in baseline_scores_missing)
+            else float("nan")
+        )
     else:
         baseline_cindex_missing = float("nan")
 
@@ -433,18 +499,34 @@ def _print_summary(summary: dict, cohort: str, output_dir: Path | None) -> None:
     bc_missing = summary.get("baseline_cindex_missing")
     dc = summary["delta_cindex"]
     src = summary.get("baseline_source", "unknown")
-    src_label = {"mice_stored": "CoxNet+MICE (stored)", "zero_fill": "zero-fill fallback", "none": "N/A"}.get(src, src)
+    src_label = {
+        "mice_stored": "CoxNet+MICE (stored)",
+        "zero_fill": "zero-fill fallback",
+        "none": "N/A",
+    }.get(src, src)
     print(f"\n=== Evaluation: {cohort.upper()} ===")
-    print(f"Test patients        : {n}  ({nc} complete, {nm} with missing modalities, {n_outliers} outliers excluded)")
+    print(
+        f"Test patients        : {n}  ({nc} complete, {nm} with missing modalities, {n_outliers} outliers excluded)"
+    )
     print(f"Orchestrator C-index : {oc if oc is not None else 'N/A'}")
     if oc_complete is not None or oc_missing is not None:
-        print(f"  ├─ Complete (n={nc})     : {oc_complete if oc_complete is not None else 'N/A'}")
-        print(f"  └─ Missing (n={nm})      : {oc_missing if oc_missing is not None else 'N/A'}")
+        print(
+            f"  ├─ Complete (n={nc})     : {oc_complete if oc_complete is not None else 'N/A'}"
+        )
+        print(
+            f"  └─ Missing (n={nm})      : {oc_missing if oc_missing is not None else 'N/A'}"
+        )
     print(f"Baseline C-index     : {bc if bc is not None else 'N/A'}  [{src_label}]")
     if bc_complete is not None or bc_missing is not None:
-        print(f"  ├─ Complete          : {bc_complete if bc_complete is not None else 'N/A'}")
-        print(f"  └─ Missing           : {bc_missing if bc_missing is not None else 'N/A'}")
-    print(f"Delta C-index        : {f'+{dc:.4f}' if dc is not None and dc >= 0 else (f'{dc:.4f}' if dc is not None else 'N/A')}")
+        print(
+            f"  ├─ Complete          : {bc_complete if bc_complete is not None else 'N/A'}"
+        )
+        print(
+            f"  └─ Missing           : {bc_missing if bc_missing is not None else 'N/A'}"
+        )
+    print(
+        f"Delta C-index        : {f'+{dc:.4f}' if dc is not None and dc >= 0 else (f'{dc:.4f}' if dc is not None else 'N/A')}"
+    )
     if output_dir:
         print(f"\nJSON : {output_dir / f'cindex_comparison_{cohort}.json'}")
         print(f"CSV  : {output_dir / f'per_patient_{cohort}.csv'}")
@@ -463,6 +545,8 @@ def evaluate(
     max_patients: int | None = None,
     output_dir: Path | None = RESULTS_DIR,
     n_candidates: int = 3,
+    miner_temperature: float | None = None,
+    generator_temperature: float | None = None,
 ) -> dict:
     """Load data from disk, build graph, run evaluation, save results."""
     from src.baseline.pipeline import load_pipeline, pipeline_path
@@ -505,6 +589,8 @@ def evaluate(
         imputation=imputation,
         train_patient_ids=train_patient_ids,
         n_candidates=n_candidates,
+        miner_temperature=miner_temperature,
+        generator_temperature=generator_temperature,
     )
 
     summary, _rows = run_evaluation(
@@ -526,9 +612,7 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s"
     )
-    parser = argparse.ArgumentParser(
-        description="End-to-end orchestrator evaluation."
-    )
+    parser = argparse.ArgumentParser(description="End-to-end orchestrator evaluation.")
     parser.add_argument(
         "--cohort",
         required=True,
@@ -560,6 +644,18 @@ def main() -> None:
         default=3,
         help="Number of generation candidates to request from the Generator (best-of-N).",
     )
+    parser.add_argument(
+        "--miner-temperature",
+        type=float,
+        default=None,
+        help="Override Miner LLM temperature (None = use default T=0.3).",
+    )
+    parser.add_argument(
+        "--generator-temperature",
+        type=float,
+        default=None,
+        help="Override Generator LLM temperature (None = use default T=0.3).",
+    )
     args = parser.parse_args()
 
     evaluate(
@@ -570,6 +666,8 @@ def main() -> None:
         max_patients=args.max_patients,
         output_dir=args.output_dir,
         n_candidates=args.n_candidates,
+        miner_temperature=args.miner_temperature,
+        generator_temperature=args.generator_temperature,
     )
 
 

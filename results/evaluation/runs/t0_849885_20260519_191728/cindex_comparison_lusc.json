@@ -1,0 +1,19 @@
+{
+  "cohort": "lusc",
+  "n_test": 90,
+  "n_complete": 61,
+  "n_missing": 29,
+  "n_outliers_excluded": 2,
+  "orchestrator_cindex": 0.5913,
+  "orchestrator_cindex_complete": 0.5331,
+  "orchestrator_cindex_missing": 0.6837,
+  "baseline_cindex": 0.6021,
+  "baseline_cindex_complete": null,
+  "baseline_cindex_missing": null,
+  "baseline_source": "mice_stored",
+  "delta_cindex": -0.0109,
+  "mean_provenance": 0.7688,
+  "mean_mahal_pct": 4.0011,
+  "mean_ci_width": 0.2544,
+  "timestamp": "2026-05-19T19:49:33.085333+00:00"
+}
