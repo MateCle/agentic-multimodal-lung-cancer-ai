@@ -1,0 +1,57 @@
+name: tests
+
+# Runs the unit-test suite on every push and pull request to dev/main.
+# All tests use mock LLM clients, so no API keys or GPUs are required.
+# Heavy optional dependencies (faiss, cupy, vllm) are NOT installed here —
+# the test suite skips tests that need them when they are absent.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  # Allow manual triggering from the GitHub UI for sanity checks
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Skip versioned ~= constraints that fight with CI resolution.
+          # Install only what is needed for the mock-based test suite.
+          pip install \
+            "numpy<3" "pandas<3" "scikit-learn<2" "scikit-survival<1" \
+            "xgboost<4" "lifelines<1" "shap<1" "joblib<2" \
+            "langgraph<2" "openai<3" \
+            "pytest<10"
+
+      - name: Run unit tests
+        env:
+          # Force the mock LLM client; tests never call a real endpoint.
+          LLM_PROVIDER: mock
+        run: |
+          # Exclude tests that require TCGA pickles or a GPU.
+          # Add ignores here if you discover other CI-incompatible files.
+          pytest tests/ \
+            -v \
+            --ignore=tests/test_data_loader.py \
+            -k "not gpu and not faiss_gpu"
