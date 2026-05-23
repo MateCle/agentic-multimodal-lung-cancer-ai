@@ -16,3 +16,6 @@ pytest~=9.0
 
 # Optional provider (enable only if you use Anthropic in src/orchestrator/llm.py)
 # anthropic~=0.50
+
+# Optional retrieval acceleration for src/evaluation/benchmark_faiss.py
+# faiss-cpu~=1.8
