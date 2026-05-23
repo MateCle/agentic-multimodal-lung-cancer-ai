@@ -53,8 +53,9 @@ class MockLLMClient(BaseLLMClient):
     Returns deterministic responses based on keywords in the prompt.
     """
 
-    def __init__(self, model: str = "mock"):
+    def __init__(self, model: str = "mock", temperature: float = 0.3):
         self.model = model
+        self.temperature = temperature
         self._call_count = 0
 
     def invoke(self, prompt: str, system: str = "") -> LLMResponse:

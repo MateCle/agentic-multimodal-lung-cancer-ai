@@ -68,6 +68,7 @@ def run_patient(
         "methylation": None,
         "available_modalities": [],
         "missing_modalities": [],
+        "forced_missing_modalities": [],
         "agent_summaries": {},
         "mining_rules": {},
         "guidance": {},
@@ -171,6 +172,18 @@ def main():
         action="store_true",
         help="Force mock mode (no LLM calls).",
     )
+    parser.add_argument(
+        "--miner-temperature",
+        type=float,
+        default=None,
+        help="Override Miner LLM temperature (None = use default T=0.3).",
+    )
+    parser.add_argument(
+        "--generator-temperature",
+        type=float,
+        default=None,
+        help="Override Generator LLM temperature (None = use default T=0.3).",
+    )
     args = parser.parse_args()
 
     if not args.patient and not args.query:
@@ -196,6 +209,8 @@ def main():
         model_name=args.model,
         imputation=args.imputation,
         train_patient_ids=train_ids,
+        miner_temperature=args.miner_temperature,
+        generator_temperature=args.generator_temperature,
     )
 
     # Run

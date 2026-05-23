@@ -33,6 +33,9 @@ class PatientState(TypedDict):
     available_modalities: list[str]
     missing_modalities: list[str]
 
+    # Optional override: force specific modalities to be treated as missing.
+    forced_missing_modalities: list[str]
+
     # Summaries from modality understanding agents (Phase 4)
     agent_summaries: dict[str, AgentSummary]
 

@@ -203,19 +203,34 @@ def _make_data_loader_node(all_data: dict, cohort_map: dict):
             raise ValueError(f"[DataLoader] Patient '{pid}' not found.")
 
         cohort = cohort_map.get(pid, "unknown")
+        forced_missing = list(state.get("forced_missing_modalities") or [])
+
+        available_modalities = [
+            m for m in record["available_modalities"] if m not in forced_missing
+        ]
+        missing_modalities = sorted(
+            set(record["missing_modalities"]) | set(forced_missing)
+        )
+
         log = (
             f"[DataLoader] Loaded {pid} (cohort={cohort.upper()}). "
-            f"Available: {record['available_modalities']}. "
-            f"Missing: {record['missing_modalities']}."
+            f"Available: {available_modalities}. "
+            f"Missing: {missing_modalities}."
         )
         return {
             "cohort": cohort,
-            "clinical": record["clinical"],
-            "transcriptomics": record["transcriptomics"],
-            "wsi": record["wsi"],
-            "methylation": record["methylation"],
-            "available_modalities": record["available_modalities"],
-            "missing_modalities": record["missing_modalities"],
+            "clinical": None if "clinical" in forced_missing else record["clinical"],
+            "transcriptomics": (
+                None
+                if "transcriptomics" in forced_missing
+                else record["transcriptomics"]
+            ),
+            "wsi": None if "wsi" in forced_missing else record["wsi"],
+            "methylation": (
+                None if "methylation" in forced_missing else record["methylation"]
+            ),
+            "available_modalities": available_modalities,
+            "missing_modalities": missing_modalities,
             "agent_summaries": {},
             "mining_rules": {},
             "guidance": {},
@@ -256,12 +271,14 @@ def build_graph(
     llm_provider: str | None = None,
     llm_model: str | None = None,
     n_candidates: int = 3,
+    miner_temperature: float | None = None,
+    generator_temperature: float | None = None,
 ):
     """
     Build and compile the LangGraph orchestrator.
 
     Modes (auto-detected):
-        - Full AFM2: train IDs + LLM → real Miner, Generator (k-NN), Verifier
+        - Full: train IDs + LLM → real Miner, Generator (k-NN), Verifier
         - Mock: no train IDs → all placeholder nodes
 
     Args:
@@ -300,16 +317,45 @@ def build_graph(
     clinical_column_types: list[str] = []
 
     if train_patient_ids is not None:
-        pool = build_pool_index(all_data, train_patient_ids)
+        pool = build_pool_index(all_data, train_patient_ids, cohort_map=cohort_map)
         pool_stats = build_pool_stats(pool)
         clinical_column_types = infer_clinical_column_types(
             pool, MODALITY_DIMS["clinical"]
         )
-        llm = get_llm_client(provider=llm_provider, model=llm_model)
+        # Default (stochastic) client for Miner. Used unless miner_temperature
+        # overrides; preserves existing T=0.3 behaviour when miner_temperature
+        # is None.
+        miner_llm = (
+            get_llm_client(
+                provider=llm_provider,
+                model=llm_model,
+                temperature=miner_temperature,
+            )
+            if miner_temperature is not None
+            else get_llm_client(provider=llm_provider, model=llm_model)
+        )
 
+        # Separate Generator client only if a temperature override is given.
+        # Otherwise the Generator reuses the Miner client (current behaviour).
+        generator_llm = (
+            get_llm_client(
+                provider=llm_provider,
+                model=llm_model,
+                temperature=generator_temperature,
+            )
+            if generator_temperature is not None
+            else miner_llm
+        )
+
+        # The Verifier is always T=0 (deterministic scoring).
         verifier_llm = get_llm_client(
             provider=llm_provider, model=llm_model, temperature=0.0
         )
+
+        # Alias for nodes that still expect `llm`. Equals miner_llm by
+        # construction, but keep both names available so existing code that
+        # references `llm` continues to work.
+        llm = miner_llm
 
         logger.info(
             f"AFM2 mode: pool={len(pool)} patients, LLM={llm.__class__.__name__}"
@@ -354,11 +400,20 @@ def build_graph(
     else:
         builder.add_node(_VERIFIER_PRE, mock_pre_verifier)
 
-    # Generator: LLM-guided k-NN retrieval with pool, or mock
+    # Generator: LLM-guided k-NN retrieval with pool, or mock.
+    # Uses generator_llm (which equals miner_llm unless generator_temperature
+    # was set on build_graph, in which case it is a separate T-controlled
+    # client).
     if pool is not None:
         builder.add_node(
             _GENERATOR,
-            make_generator_node(pool, llm, metadata, n_candidates=n_candidates),
+            make_generator_node(
+                pool,
+                generator_llm,
+                metadata,
+                n_candidates=n_candidates,
+                cohort_map=cohort_map,
+            ),
         )
     else:
         builder.add_node(_GENERATOR, mock_generator)
