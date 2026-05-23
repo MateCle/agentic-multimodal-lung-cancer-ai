@@ -46,8 +46,8 @@ jobs:
 
       - name: Run unit tests
         env:
-          # Force the mock LLM client; tests never call a real endpoint.
           LLM_PROVIDER: mock
+          PYTHONPATH: .
         run: |
           # Exclude tests that require TCGA pickles or a GPU.
           # Add ignores here if you discover other CI-incompatible files.
