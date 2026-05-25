@@ -3,15 +3,15 @@ Verifier nodes for the LangGraph orchestrator (AFM2-aligned).
 
 Two distinct nodes following AFM2:
 
-  pre_verifier  — runs ONCE between Miner and Generator.
-                  Reviews raw mining rules, produces refined guidance
-                  that conditions the Generator's k-NN retrieval. T=0.
+    pre_generation_verifier  — runs ONCE between Miner and Generator.
+                                                            Reviews raw mining rules, produces refined guidance
+                                                            that conditions the Generator's k-NN retrieval. T=0.
 
-  verifier      — runs after Generator in the self-refinement loop.
-                  Scores all N candidates per modality (best-of-N),
-                  promotes the winner to generated_modalities, and
-                  produces correction_hints for the next retry.
-                  T=0, max 3 iterations (enforced by router).
+    post_generation_verifier — runs after Generator in the self-refinement loop.
+                                                            Scores all N candidates per modality (best-of-N),
+                                                            promotes the winner to generated_modalities, and
+                                                            produces correction_hints for the next retry.
+                                                            T=0, max 3 iterations (enforced by router).
 
 Criteria (AFM2-style, 6-criteria MLLM-as-Judge):
   distributional_plausibility, biological_consistency,
@@ -27,7 +27,7 @@ from src.orchestrator.llm import BaseLLMClient
 from src.orchestrator.state import PatientState
 
 # AFM2 uses generation_threshold=4 and max_generation_verification_step=3
-VERIFIER_THRESHOLD = 4.0
+POST_GENERATION_VERIFIER_THRESHOLD = 4.0
 N_STD = 3.0
 MIN_PATIENTS_FOR_STATS = 5
 
@@ -44,8 +44,8 @@ EVALUATION_CRITERIA = [
 # System prompts
 # ---------------------------------------------------------------------------
 
-VERIFIER_PRE_SYSTEM_PROMPT = (
-    "You are the pre-generation Verifier in a multimodal lung cancer "
+PRE_GENERATION_VERIFIER_SYSTEM_PROMPT = (
+    "You are the Pre-Generation Verifier in a multimodal lung cancer "
     "survival prediction system following the AFM2 framework. "
     "The Miner agent has produced raw cross-modal reasoning rules. "
     "Your role is to review these rules and produce refined, actionable "
@@ -60,8 +60,8 @@ VERIFIER_PRE_SYSTEM_PROMPT = (
     '{"guidance": {"<modality>": "<refined_guidance>", ...}}'
 )
 
-VERIFIER_SYSTEM_PROMPT = (
-    "You are the Verifier agent in a multimodal lung cancer survival "
+POST_GENERATION_VERIFIER_SYSTEM_PROMPT = (
+    "You are the Post-Generation Verifier agent in a multimodal lung cancer survival "
     "prediction system, following the AFM2 framework. Your role is to "
     "evaluate the quality of reconstructed modality features using "
     "six clinical evaluation criteria.\n\n"
@@ -251,7 +251,7 @@ def _parse_criteria_scores(response: dict) -> tuple[float, dict, str]:
 
 
 # ---------------------------------------------------------------------------
-# Per-modality evaluation helpers (shared by pre- and post-verifier)
+# Per-modality evaluation helpers (shared by pre- and post-generation verifiers)
 # ---------------------------------------------------------------------------
 
 
@@ -303,7 +303,7 @@ def _evaluate_modality(modality, features, pool_stats, rules, llm, threshold):
 
     dist_score, outlier_text = _run_distributional_check(arr, mod_stats)
     log_lines.append(
-        f"[Verifier] '{modality}' distributional: {dist_score:.1%} in range."
+        f"[Post-Generation Verifier] '{modality}' distributional: {dist_score:.1%} in range."
     )
 
     gen_stats = _compute_gen_stats(arr)
@@ -315,13 +315,13 @@ def _evaluate_modality(modality, features, pool_stats, rules, llm, threshold):
         generated_stats=gen_stats,
     )
 
-    response = llm.invoke_json(prompt, system=VERIFIER_SYSTEM_PROMPT)
+    response = llm.invoke_json(prompt, system=POST_GENERATION_VERIFIER_SYSTEM_PROMPT)
     overall, criteria, feedback = _parse_criteria_scores(response)
     passed = overall >= threshold
 
     criteria_str = ", ".join(f"{c[:12]}={v:.1f}" for c, v in criteria.items())
     log_lines.append(
-        f"[Verifier] '{modality}' criteria: [{criteria_str}]. "
+        f"[Post-Generation Verifier] '{modality}' criteria: [{criteria_str}]. "
         f"Overall: {overall:.1f}/5 (threshold={threshold}). "
         f"{'PASS' if passed else 'FAIL'}."
     )
@@ -334,11 +334,11 @@ def _evaluate_modality(modality, features, pool_stats, rules, llm, threshold):
 
 
 # ---------------------------------------------------------------------------
-# Pre-generation Verifier (Miner → Verifier-pre → Generator)
+# Pre-Generation Verifier (Miner → Pre-Generation Verifier → Generator)
 # ---------------------------------------------------------------------------
 
 
-def _build_pre_verification_prompt(
+def _build_pre_generation_verification_prompt(
     mining_rules: dict[str, str],
     available_modalities: list[str],
     missing_modalities: list[str],
@@ -379,49 +379,57 @@ def _parse_guidance(
     return guidance
 
 
-def make_pre_verifier_node(
+def make_pre_generation_verifier_node(
     llm: BaseLLMClient,
 ):
     """
-    Returns the pre-generation Verifier node closure.
+    Returns the Pre-Generation Verifier node closure.
 
     Reads mining_rules from state, calls the LLM once (T=0) to produce
     refined guidance per missing modality, and writes guidance to state.
     Also persists both mining_rules and guidance in source_map.
     """
 
-    def pre_verifier_node(state: PatientState) -> dict:
+    def pre_generation_verifier_node(state: PatientState) -> dict:
         mining_rules = state.get("mining_rules") or {}
         missing = state.get("missing_modalities") or []
         available = state.get("available_modalities") or []
         log_lines = []
 
         if not missing:
-            log_lines.append("[Verifier-pre] No missing modalities. Skipping.")
+            log_lines.append(
+                "[Pre-Generation Verifier] No missing modalities. Skipping."
+            )
             return {"guidance": {}, "execution_log": log_lines}
 
-        prompt = _build_pre_verification_prompt(
+        prompt = _build_pre_generation_verification_prompt(
             mining_rules=mining_rules,
             available_modalities=available,
             missing_modalities=missing,
         )
         log_lines.append(
-            f"[Verifier-pre] Reviewing {len(missing)} mining rules. Missing: {missing}."
+            f"[Pre-Generation Verifier] Reviewing {len(missing)} mining rules. "
+            f"Missing: {missing}."
         )
 
         try:
-            response = llm.invoke_json(prompt, system=VERIFIER_PRE_SYSTEM_PROMPT)
+            response = llm.invoke_json(
+                prompt, system=PRE_GENERATION_VERIFIER_SYSTEM_PROMPT
+            )
             guidance = _parse_guidance(response, missing, mining_rules)
         except Exception as e:
             log_lines.append(
-                f"[Verifier-pre] LLM call failed: {e}. Falling back to raw rules."
+                f"[Pre-Generation Verifier] LLM call failed: {e}. "
+                "Falling back to raw rules."
             )
             guidance = {
                 mod: mining_rules.get(mod, f"Fallback for '{mod}'.") for mod in missing
             }
 
         for mod, g in guidance.items():
-            log_lines.append(f"[Verifier-pre] Guidance for '{mod}': {g[:100]}...")
+            log_lines.append(
+                f"[Pre-Generation Verifier] Guidance for '{mod}': {g[:100]}..."
+            )
 
         # Persist both raw rules and refined guidance in source_map for auditability
         current_map = dict(state.get("source_map") or {})
@@ -434,11 +442,11 @@ def make_pre_verifier_node(
             "execution_log": log_lines,
         }
 
-    return pre_verifier_node
+    return pre_generation_verifier_node
 
 
 # ---------------------------------------------------------------------------
-# Post-generation Verifier (best-of-N ranker)
+# Post-Generation Verifier (best-of-N ranker)
 # ---------------------------------------------------------------------------
 
 
@@ -466,7 +474,8 @@ def _score_candidates(
         log_lines.extend(mod_logs)
         if n > 1 and score_all:
             log_lines.append(
-                f"[Verifier] '{modality}' candidate {idx + 1}/{n}: score={score:.1f}."
+                f"[Post-Generation Verifier] '{modality}' candidate {idx + 1}/{n}: "
+                f"score={score:.1f}."
             )
         if score > best_score:
             best_score = score
@@ -476,14 +485,14 @@ def _score_candidates(
     return best_score, best_arr, best_hint, log_lines
 
 
-def make_verifier_node(
+def make_post_generation_verifier_node(
     pool_stats: dict[str, dict],
     llm: BaseLLMClient,
-    threshold: float = VERIFIER_THRESHOLD,
+    threshold: float = POST_GENERATION_VERIFIER_THRESHOLD,
     score_all_candidates: bool = True,
 ):
     """
-    Returns the post-generation Verifier closure (best-of-N ranker).
+    Returns the Post-Generation Verifier closure (best-of-N ranker).
 
     Reads generation_candidates (N arrays per modality) from state.
     For each modality:
@@ -501,7 +510,7 @@ def make_verifier_node(
             (fast path for benchmark runs — equivalent to N=1 cost).
     """
 
-    def verifier_node(state: PatientState) -> dict:
+    def post_generation_verifier_node(state: PatientState) -> dict:
         gen_candidates: dict = state.get("generation_candidates") or {}
 
         # Backward compat: wrap generated_modalities as single-candidate lists
@@ -539,7 +548,8 @@ def make_verifier_node(
 
         overall_passed = all(s >= threshold for s in scores.values())
         log_lines.append(
-            f"[Verifier] Overall: {'PASS' if overall_passed else 'FAIL'}. "
+            f"[Post-Generation Verifier] Overall: "
+            f"{'PASS' if overall_passed else 'FAIL'}. "
             f"Scores: {scores}"
         )
 
@@ -551,7 +561,7 @@ def make_verifier_node(
             "execution_log": log_lines,
         }
 
-    return verifier_node
+    return post_generation_verifier_node
 
 
 # ---------------------------------------------------------------------------
@@ -559,8 +569,8 @@ def make_verifier_node(
 # ---------------------------------------------------------------------------
 
 
-def pre_verifier_node(state: PatientState) -> dict:
-    """MOCK pre-Verifier: echoes mining rules as guidance unchanged."""
+def pre_generation_verifier_node(state: PatientState) -> dict:
+    """MOCK Pre-Generation Verifier: echoes mining rules as guidance unchanged."""
     mining_rules = state.get("mining_rules") or {}
     missing = state.get("missing_modalities") or []
     guidance = {
@@ -574,12 +584,14 @@ def pre_verifier_node(state: PatientState) -> dict:
     return {
         "guidance": guidance,
         "source_map": current_map,
-        "execution_log": [f"[Verifier-pre] MOCK: guidance echoed for {missing}."],
+        "execution_log": [
+            f"[Pre-Generation Verifier] MOCK: guidance echoed for {missing}."
+        ],
     }
 
 
-def verifier_node(state: PatientState) -> dict:
-    """MOCK post-Verifier: random scores 1-5 for each candidate set."""
+def post_generation_verifier_node(state: PatientState) -> dict:
+    """MOCK Post-Generation Verifier: random scores 1-5 for each candidate set."""
     import random
 
     gen_candidates: dict = state.get("generation_candidates") or {}
@@ -600,13 +612,16 @@ def verifier_node(state: PatientState) -> dict:
         scores[modality] = candidate_scores[best_idx]
         best_modalities[modality] = candidates[best_idx]
         log_lines.append(
-            f"[Verifier] MOCK '{modality}' best score: {scores[modality]}/5 "
+            f"[Post-Generation Verifier] MOCK '{modality}' best score: "
+            f"{scores[modality]}/5 "
             f"(candidate {best_idx + 1}/{len(candidates)}, "
-            f"threshold={VERIFIER_THRESHOLD})."
+            f"threshold={POST_GENERATION_VERIFIER_THRESHOLD})."
         )
 
-    passed = all(s >= VERIFIER_THRESHOLD for s in scores.values())
-    log_lines.append(f"[Verifier] Overall: {'PASS' if passed else 'FAIL'}.")
+    passed = all(s >= POST_GENERATION_VERIFIER_THRESHOLD for s in scores.values())
+    log_lines.append(
+        f"[Post-Generation Verifier] Overall: {'PASS' if passed else 'FAIL'}."
+    )
 
     return {
         "generated_modalities": best_modalities,

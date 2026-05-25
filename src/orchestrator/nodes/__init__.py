@@ -14,13 +14,13 @@ __all__ = [
     "generator_node",
     "make_generator_node",
     "build_pool_index",
-    "verifier_node",
-    "make_verifier_node",
+    "post_generation_verifier_node",
+    "make_post_generation_verifier_node",
     "build_pool_stats",
     "predictor_node",
     "make_predictor_node",
     "route_after_planner",
-    "route_after_verifier",
+    "route_after_post_generation_verifier",
 ]
 
 
@@ -34,10 +34,19 @@ _EXPORTS = {
     "predictor_node": ("src.orchestrator.nodes.predictor", "predictor_node"),
     "make_predictor_node": ("src.orchestrator.nodes.predictor", "make_predictor_node"),
     "route_after_planner": ("src.orchestrator.nodes.router", "route_after_planner"),
-    "route_after_verifier": ("src.orchestrator.nodes.router", "route_after_verifier"),
+    "route_after_post_generation_verifier": (
+        "src.orchestrator.nodes.router",
+        "route_after_post_generation_verifier",
+    ),
     "build_pool_stats": ("src.orchestrator.nodes.verifier", "build_pool_stats"),
-    "verifier_node": ("src.orchestrator.nodes.verifier", "verifier_node"),
-    "make_verifier_node": ("src.orchestrator.nodes.verifier", "make_verifier_node"),
+    "post_generation_verifier_node": (
+        "src.orchestrator.nodes.verifier",
+        "post_generation_verifier_node",
+    ),
+    "make_post_generation_verifier_node": (
+        "src.orchestrator.nodes.verifier",
+        "make_post_generation_verifier_node",
+    ),
 }
 
 

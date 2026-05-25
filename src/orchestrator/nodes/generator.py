@@ -4,12 +4,12 @@ Generator node for the LangGraph orchestrator (AFM2-aligned).
 Reconstructs missing modalities via LLM-guided k-NN retrieval.
 Following AFM2's Generation Agent pattern with N>1 best-of-N support:
 
-  1. LLM interprets refined guidance (from pre-Verifier) to produce
+    1. LLM interprets refined guidance (from Pre-Generation Verifier) to produce
      modality weights for k-NN similarity computation.
   2. Top k*N neighbours retrieved; split into N candidate arrays per modality.
-  3. N candidates stored in generation_candidates for the post-Verifier to
+    3. N candidates stored in generation_candidates for the Post-Generation Verifier to
      score and rank (best-of-N selection).
-  4. On self-refinement retries, correction hints from the Verifier are
+    4. On self-refinement retries, correction hints from the Post-Generation Verifier are
      included in the LLM prompt.
 
 FAISS backend:
@@ -136,7 +136,11 @@ def _sanitize_pool_feature_dims(
             cohort = cohort_map.get(entry["patient_id"], "unknown")
             by_cohort[cohort].append(entry)
         for cohort, entries in by_cohort.items():
-            logger.info("[Generator] Sanitizing pool dims for cohort '%s' (%d entries)", cohort, len(entries))
+            logger.info(
+                "[Generator] Sanitizing pool dims for cohort '%s' (%d entries)",
+                cohort,
+                len(entries),
+            )
             _sanitize_pool_feature_dims(entries, cohort_map=None)
         return
 
@@ -381,7 +385,7 @@ def _average_chunk(
     chunk: list, target_modality: str, dim: int
 ) -> tuple[np.ndarray, list[dict]]:
     """Weighted average of one k-neighbour chunk → (reconstruction, info).
-    
+
     Defensive: skips pool entries whose target_modality vector does not match
     the expected dimensionality. Logs a warning for each skipped entry so the
     incident is auditable from the orchestrator execution log.
@@ -399,23 +403,28 @@ def _average_chunk(
             skipped.append((entry["patient_id"], f"shape={feat_arr.shape}"))
             continue
         valid_chunk.append((sim, entry))
- 
+
     if skipped:
         logger.warning(
             "[Generator] _average_chunk: skipped %d/%d neighbours for "
             "modality '%s' (expected dim=%d). Skipped: %s",
-            len(skipped), len(chunk), target_modality, dim, skipped[:5],
+            len(skipped),
+            len(chunk),
+            target_modality,
+            dim,
+            skipped[:5],
         )
- 
+
     if not valid_chunk:
         # All neighbours malformed: return zero-fill rather than crash
         logger.error(
             "[Generator] _average_chunk: no valid neighbours for modality "
             "'%s' (expected dim=%d). Returning zero-fill candidate.",
-            target_modality, dim,
+            target_modality,
+            dim,
         )
         return np.zeros(dim, dtype=np.float32), []
- 
+
     # Standard weighted average on the valid subset
     weights = np.array([max(sim, 0.0) for sim, _ in valid_chunk], dtype=np.float32)
     weight_sum = weights.sum()
@@ -423,7 +432,7 @@ def _average_chunk(
         weights = np.ones(len(valid_chunk), dtype=np.float32) / len(valid_chunk)
     else:
         weights /= weight_sum
- 
+
     result = np.zeros(dim, dtype=np.float32)
     info: list[dict] = []
     for w, (sim, entry) in zip(weights, valid_chunk):
@@ -436,6 +445,7 @@ def _average_chunk(
             }
         )
     return result, info
+
 
 def _knn_retrieve_candidates(
     query_features,
@@ -487,7 +497,7 @@ def _knn_retrieve_candidates(
     # Each candidate therefore spans the full similarity range of the top-kN
     # neighbourhood rather than getting progressively worse tiers, which makes
     # the reconstructions genuinely diverse while keeping average similarity
-    # comparable across candidates — a requirement for the Verifier to
+    # comparable across candidates — a requirement for the Post-Generation Verifier to
     # discriminate on biological criteria rather than similarity rank alone.
     candidates: list[np.ndarray] = []
     neighbor_info: list[dict] = []
@@ -651,7 +661,7 @@ def _build_guidance_prompt(
     )
     if correction_hint:
         prompt += (
-            f"\nPREVIOUS ATTEMPT FAILED. Verifier feedback:\n"
+            f"\nPREVIOUS ATTEMPT FAILED. Post-Generation Verifier feedback:\n"
             f"  {correction_hint}\n"
             f"Adjust your weights and k accordingly. Make a concrete change; "
             f"do not repeat the same weights and k.\n"
@@ -792,9 +802,9 @@ def make_generator_node(
         2. Computes weighted cosine similarity on shared modalities via FAISS
            IndexFlatIP (GPU→CPU→sklearn fallback chain)
         3. Retrieves top-k*N neighbors split into N candidate reconstructions
-        4. Stores N candidates in generation_candidates for the Verifier
+        4. Stores N candidates in generation_candidates for the Post-Generation Verifier
 
-    On self-refinement retries, correction hints from the Verifier are
+    On self-refinement retries, correction hints from the Post-Generation Verifier are
     included in the LLM prompt to adjust the retrieval strategy.
 
     Args:
@@ -816,7 +826,7 @@ def make_generator_node(
     def generator_node(state: PatientState) -> dict:
         pid = state["patient_id"]
         missing = state["missing_modalities"]
-        # Use refined guidance from pre-Verifier; fall back to raw mining rules
+        # Use refined guidance from Pre-Generation Verifier; fall back to raw mining rules
         guidance = state.get("guidance") or state.get("mining_rules") or {}
         hints = state.get("correction_hints") or {}
         log_lines = []

@@ -9,7 +9,7 @@ In clinical reality, patient records are often incomplete. This project addresse
 The orchestrator is built as a LangGraph stateful directed graph with bounded self-refinement. Data flows between nodes via a strictly typed `PatientState`. The pipeline consists of six nodes with two conditional branching points:
 
 ```
-DataLoader → Planner → Miner → PreVerifier → Generator → Verifier → Predictor
+DataLoader → Planner → Miner → Pre-Generation Verifier → Generator → Post-Generation Verifier → Predictor
                   |                                  |
                   | (all modalities present)          | (quality check failed,
                   +→ Predictor                       +→ Generator (retry,
@@ -19,13 +19,13 @@ DataLoader → Planner → Miner → PreVerifier → Generator → Verifier → 
 1. **DataLoader:** Entry point. Loads a patient's multimodal record from the preloaded TCGA cohort data and populates the shared state with raw feature arrays and modality availability flags. Supports forced-missing modalities for ablation experiments.
 2. **Planner:** Inspects which modalities are available and which are missing. Routes to the Miner if any modality is absent, or directly to the Predictor if all modalities are present.
 3. **Miner (LLM):** Calls an LLM (Qwen2.5-7B-Instruct via vLLM) to reason about cross-modal biological relationships and produce mining rules for each missing modality, following AFM2's Miner Agent pattern.
-4. **PreVerifier:** Runs once between the Miner and Generator. Calls the LLM (T=0) to review the raw mining rules and rewrite them into refined, retrieval-ready guidance per missing modality. The refined guidance is written to state and consumed by the Generator.
+4. **Pre-Generation Verifier:** Runs once between the Miner and Generator. Calls the LLM (T=0) to review the raw mining rules and rewrite them into refined, retrieval-ready guidance per missing modality. The refined guidance is written to state and consumed by the Generator.
 5. **Generator (LLM + FAISS k-NN):** Uses the LLM to interpret mining rules into modality weights, then performs FAISS-accelerated k-NN retrieval over the training pool with weighted cosine similarity to reconstruct missing features. Supports independent temperature control for generation diversity.
-6. **Verifier (LLM):** Performs a distributional check followed by LLM-based multi-criteria quality scoring (6 clinical criteria, each 0-5, following AFM2). Implements a self-refinement loop: if the overall score falls below threshold (4.0), execution routes back to the Generator with correction hints (up to 3 attempts).
+6. **Post-Generation Verifier (LLM):** Performs a distributional check followed by LLM-based multi-criteria quality scoring (6 clinical criteria, each 0-5, following AFM2). Implements a self-refinement loop: if the overall score falls below threshold (4.0), execution routes back to the Generator with correction hints (up to 3 attempts).
 7. **Predictor:** Assembles all features (real + generated) and runs the fitted baseline pipeline (scaler → PCA → survival model) for the final risk score prediction. Attaches prediction reliability metadata: bootstrap 95% CI on the risk score, Mahalanobis OOD distance, and modality provenance fraction.
 
 ### LLM Usage
-Three nodes use the LLM (Miner, Generator, Verifier). The remaining nodes are deterministic. The system supports three LLM providers via a unified client:
+Four nodes use the LLM (Miner, Pre-Generation Verifier, Generator, Post-Generation Verifier). The remaining nodes are deterministic. The system supports three LLM providers via a unified client:
 - **Local vLLM** (Qwen2.5-7B-Instruct on AAU AI-LAB) — primary mode
 - **OpenAI API** (GPT-4o) — alternative
 - **Mock** — deterministic responses for testing without GPU
@@ -165,7 +165,7 @@ python -m src.orchestrator.run --patient TCGA-05-4244 --verbose --mock
 
 **Real mode (requires vLLM server running):**
 ```bash
-python -m src.orchestrator.run --patient TCGA-XX-XXXX --verbose
+python -m src.orchestrator.run --patient TCGA-05-4244 --verbose
 ```
 
 **Multiple patients:**

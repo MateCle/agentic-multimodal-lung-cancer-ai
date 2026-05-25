@@ -63,14 +63,14 @@ class MockLLMClient(BaseLLMClient):
         logger.debug(f"[MockLLM] Call #{self._call_count}, prompt length={len(prompt)}")
 
         # Generate contextual mock responses based on system + prompt keywords.
-        # Pre-Verifier system prompt contains "guidance"; check it first so we
+        # Pre-Generation Verifier system prompt contains "guidance"; check it first so we
         # don't misroute it to the miner branch (which also sees "mining rules").
         if "guidance" in system.lower():
-            content = self._mock_pre_verifier_response(prompt)
+            content = self._mock_pre_generation_verifier_response(prompt)
         elif "mining rules" in prompt.lower() or "reconstruct" in prompt.lower():
             content = self._mock_miner_response(prompt)
         elif "verify" in prompt.lower() or "plausib" in prompt.lower():
-            content = self._mock_verifier_response(prompt)
+            content = self._mock_post_generation_verifier_response(prompt)
         elif "summarize" in prompt.lower() or "analyze" in prompt.lower():
             content = self._mock_agent_response(prompt)
         else:
@@ -92,7 +92,7 @@ class MockLLMClient(BaseLLMClient):
         except json.JSONDecodeError:
             return {"raw_response": response.content}
 
-    def _mock_pre_verifier_response(self, _prompt: str) -> str:
+    def _mock_pre_generation_verifier_response(self, _prompt: str) -> str:
         return json.dumps(
             {
                 "guidance": {
@@ -146,7 +146,7 @@ class MockLLMClient(BaseLLMClient):
             }
         )
 
-    def _mock_verifier_response(self, _prompt: str) -> str:
+    def _mock_post_generation_verifier_response(self, _prompt: str) -> str:
         return json.dumps(
             {
                 "plausible": True,

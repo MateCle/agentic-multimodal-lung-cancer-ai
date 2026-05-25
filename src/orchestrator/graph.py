@@ -2,14 +2,14 @@
 LangGraph stateful graph definition for the multimodal lung cancer orchestrator.
 AFM2-aligned core pipeline:
 
-  DataLoader -> Planner -> Miner -> Verifier-pre -> Generator -> Verifier -> Predictor
+    DataLoader -> Planner -> Miner -> Pre-Generation Verifier -> Generator -> Post-Generation Verifier -> Predictor
                        |                                              ^
                        | (all present)                                | (self-refinement, max 3)
                        +---> Predictor                                v
                                                                   Generator
 
-  Verifier-pre: reviews Miner's raw rules once, produces refined guidance.
-  Verifier:     scores N candidates (best-of-N), triggers retry if below threshold.
+    Pre-Generation Verifier: reviews Miner's raw rules once, produces refined guidance.
+    Post-Generation Verifier: scores N candidates (best-of-N), triggers retry if below threshold.
 
 Extensions (added after core works):
     - Modality agents (parallel on multi-GPU)
@@ -53,17 +53,20 @@ from src.orchestrator.nodes.predictor import (
 from src.orchestrator.nodes.predictor import (
     predictor_node as mock_predictor,
 )
-from src.orchestrator.nodes.router import route_after_planner, route_after_verifier
+from src.orchestrator.nodes.router import (
+    route_after_planner,
+    route_after_post_generation_verifier,
+)
 from src.orchestrator.nodes.verifier import (
     build_pool_stats,
-    make_pre_verifier_node,
-    make_verifier_node,
+    make_post_generation_verifier_node,
+    make_pre_generation_verifier_node,
 )
 from src.orchestrator.nodes.verifier import (
-    pre_verifier_node as mock_pre_verifier,
+    post_generation_verifier_node as mock_post_generation_verifier,
 )
 from src.orchestrator.nodes.verifier import (
-    verifier_node as mock_verifier,
+    pre_generation_verifier_node as mock_pre_generation_verifier,
 )
 from src.orchestrator.state import PatientState
 
@@ -72,9 +75,9 @@ logger = logging.getLogger(__name__)
 _DATA_LOADER = "data_loader"
 _PLANNER = "planner"
 _MINER = "miner"
-_VERIFIER_PRE = "verifier_pre"
+_PRE_GENERATION_VERIFIER = "pre_generation_verifier"
 _GENERATOR = "generator"
-_VERIFIER = "verifier"
+_POST_GENERATION_VERIFIER = "post_generation_verifier"
 _PREDICTOR = "predictor"
 _LANG_PARSER = "language_parser"
 _LANG_REPORTER = "language_reporter"
@@ -278,7 +281,7 @@ def build_graph(
     Build and compile the LangGraph orchestrator.
 
     Modes (auto-detected):
-        - Full: train IDs + LLM → real Miner, Generator (k-NN), Verifier
+        - Full: train IDs + LLM → real Miner, Generator (k-NN), Post-Generation Verifier
         - Mock: no train IDs → all placeholder nodes
 
     Args:
@@ -347,7 +350,7 @@ def build_graph(
             else miner_llm
         )
 
-        # The Verifier is always T=0 (deterministic scoring).
+        # The Post-Generation Verifier is always T=0 (deterministic scoring).
         verifier_llm = get_llm_client(
             provider=llm_provider, model=llm_model, temperature=0.0
         )
@@ -393,12 +396,15 @@ def build_graph(
     else:
         builder.add_node(_MINER, mock_miner)
 
-    # Pre-Verifier: reviews Miner rules once, produces refined guidance (T=0).
+    # Pre-Generation Verifier: reviews Miner rules once, produces refined guidance (T=0).
     # Does not need pool_stats — it calls the LLM on raw text rules only.
     if verifier_llm is not None:
-        builder.add_node(_VERIFIER_PRE, make_pre_verifier_node(verifier_llm))
+        builder.add_node(
+            _PRE_GENERATION_VERIFIER,
+            make_pre_generation_verifier_node(verifier_llm),
+        )
     else:
-        builder.add_node(_VERIFIER_PRE, mock_pre_verifier)
+        builder.add_node(_PRE_GENERATION_VERIFIER, mock_pre_generation_verifier)
 
     # Generator: LLM-guided k-NN retrieval with pool, or mock.
     # Uses generator_llm (which equals miner_llm unless generator_temperature
@@ -418,11 +424,14 @@ def build_graph(
     else:
         builder.add_node(_GENERATOR, mock_generator)
 
-    # Post-Verifier: best-of-N ranker + distributional + LLM scoring, or mock
+    # Post-Generation Verifier: best-of-N ranker + distributional + LLM scoring, or mock
     if pool_stats is not None and verifier_llm is not None:
-        builder.add_node(_VERIFIER, make_verifier_node(pool_stats, verifier_llm))
+        builder.add_node(
+            _POST_GENERATION_VERIFIER,
+            make_post_generation_verifier_node(pool_stats, verifier_llm),
+        )
     else:
-        builder.add_node(_VERIFIER, mock_verifier)
+        builder.add_node(_POST_GENERATION_VERIFIER, mock_post_generation_verifier)
 
     # Predictor: baseline pipeline + per-cohort metadata for SHAP, or mock
     if pipelines:
@@ -456,16 +465,17 @@ def build_graph(
         {_MINER: _MINER, _PREDICTOR: _PREDICTOR},
     )
 
-    # Miner -> Verifier-pre -> Generator -> Verifier(post)
-    # The self-refinement loop (Verifier -> Generator) skips Verifier-pre
+    # Miner -> Pre-Generation Verifier -> Generator -> Post-Generation Verifier
+    # The self-refinement loop (Post-Generation Verifier -> Generator) skips
+    # the Pre-Generation Verifier so guidance is computed once.
     # so the refined guidance is computed exactly once per patient.
-    builder.add_edge(_MINER, _VERIFIER_PRE)
-    builder.add_edge(_VERIFIER_PRE, _GENERATOR)
-    builder.add_edge(_GENERATOR, _VERIFIER)
+    builder.add_edge(_MINER, _PRE_GENERATION_VERIFIER)
+    builder.add_edge(_PRE_GENERATION_VERIFIER, _GENERATOR)
+    builder.add_edge(_GENERATOR, _POST_GENERATION_VERIFIER)
 
     builder.add_conditional_edges(
-        _VERIFIER,
-        route_after_verifier,
+        _POST_GENERATION_VERIFIER,
+        route_after_post_generation_verifier,
         {_PREDICTOR: _PREDICTOR, _GENERATOR: _GENERATOR},
     )
 
