@@ -13,9 +13,9 @@ from src.orchestrator.nodes.predictor import predictor_node
 from src.orchestrator.nodes.router import (
     MAX_REFINEMENT_ATTEMPTS,
     route_after_planner,
-    route_after_verifier,
+    route_after_post_generation_verifier,
 )
-from src.orchestrator.nodes.verifier import verifier_node
+from src.orchestrator.nodes.verifier import post_generation_verifier_node
 from src.orchestrator.state import PatientState
 
 # ---------------------------------------------------------------------------
@@ -105,24 +105,30 @@ class TestRouteAfterPlanner:
         assert route_after_planner(state) == "predictor"
 
 
-class TestRouteAfterVerifier:
+class TestRouteAfterPostGenerationVerifier:
     def test_passed_goes_to_predictor(self):
         state = _make_state(verification_passed=True)
-        assert route_after_verifier(state) == "predictor"
+        assert route_after_post_generation_verifier(state) == "predictor"
 
     def test_failed_goes_to_generator(self):
         state = _make_state(verification_passed=False, execution_log=[])
-        assert route_after_verifier(state) == "generator"
+        assert route_after_post_generation_verifier(state) == "generator"
 
     def test_max_attempts_reached_goes_to_predictor(self):
-        logs = ["[Verifier] Overall: FAIL." for _ in range(MAX_REFINEMENT_ATTEMPTS)]
+        logs = [
+            "[Post-Generation Verifier] Overall: FAIL."
+            for _ in range(MAX_REFINEMENT_ATTEMPTS)
+        ]
         state = _make_state(verification_passed=False, execution_log=logs)
-        assert route_after_verifier(state) == "predictor"
+        assert route_after_post_generation_verifier(state) == "predictor"
 
     def test_under_max_attempts_retries(self):
-        logs = ["[Verifier] Overall: FAIL." for _ in range(MAX_REFINEMENT_ATTEMPTS - 1)]
+        logs = [
+            "[Post-Generation Verifier] Overall: FAIL."
+            for _ in range(MAX_REFINEMENT_ATTEMPTS - 1)
+        ]
         state = _make_state(verification_passed=False, execution_log=logs)
-        assert route_after_verifier(state) == "generator"
+        assert route_after_post_generation_verifier(state) == "generator"
 
 
 # ---------------------------------------------------------------------------
@@ -181,11 +187,11 @@ class TestMockGeneratorNode:
 
 
 # ---------------------------------------------------------------------------
-# Mock Verifier (AFM2: scores 1-5)
+# Mock Post-Generation Verifier (AFM2: scores 1-5)
 # ---------------------------------------------------------------------------
 
 
-class TestMockVerifierNode:
+class TestMockPostGenerationVerifierNode:
     def test_scores_all_generated_modalities(self):
         state = _make_state(
             generated_modalities={
@@ -193,7 +199,7 @@ class TestMockVerifierNode:
                 "wsi": np.zeros(1024),
             },
         )
-        result = verifier_node(state)
+        result = post_generation_verifier_node(state)
         assert "transcriptomics" in result["verification_scores"]
         assert "wsi" in result["verification_scores"]
 
@@ -201,7 +207,7 @@ class TestMockVerifierNode:
         state = _make_state(
             generated_modalities={"transcriptomics": np.zeros(1824)},
         )
-        result = verifier_node(state)
+        result = post_generation_verifier_node(state)
         score = result["verification_scores"]["transcriptomics"]
         assert 1.0 <= score <= 5.0
 
@@ -209,12 +215,12 @@ class TestMockVerifierNode:
         state = _make_state(
             generated_modalities={"clinical": np.zeros(63)},
         )
-        result = verifier_node(state)
+        result = post_generation_verifier_node(state)
         assert isinstance(result["verification_passed"], bool)
 
     def test_empty_generated_passes(self):
         state = _make_state(generated_modalities={})
-        result = verifier_node(state)
+        result = post_generation_verifier_node(state)
         assert result["verification_passed"] is True
 
 

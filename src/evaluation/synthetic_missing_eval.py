@@ -27,11 +27,11 @@ controllable, ground-truth-known reconstruction task:
       - Compare the reconstructed vector to the held-out ground truth
         with cosine similarity, MSE, and (optional) per-modality
         block-level diagnostics.
-  • Also collect the Verifier post-hoc overall_score for each
+    • Also collect the Post-Generation Verifier post-hoc overall_score for each
     reconstruction, so the script can report the correlation between
-    the Verifier's internal quality score and the *actual* recon
+    the Post-Generation Verifier's internal quality score and the *actual* recon
     quality measured against ground truth. This validates (or refutes)
-    the Verifier as a useful signal.
+    the Post-Generation Verifier as a useful signal.
 
 Outputs
 -------
@@ -71,9 +71,9 @@ Usage
 Notes
 -----
 This script does not call the Predictor — it only invokes the orchestrator
-up to (and including) the Verifier. The Predictor's risk score is not
+up to (and including) the Post-Generation Verifier. The Predictor's risk score is not
 relevant for reconstruction quality. We extract the reconstructed
-modality and the Verifier score from the final PatientState dict.
+modality and the Post-Generation Verifier score from the final PatientState dict.
 
 The script is deliberately tolerant of partial failures: if a single
 patient/modality combination fails (LLM JSON parse error, k-NN pool
@@ -203,14 +203,14 @@ def _normalized_mse(
 
 
 # ---------------------------------------------------------------------------
-# Verifier score extraction
+# Post-Generation Verifier score extraction
 # ---------------------------------------------------------------------------
 
 
-def _extract_verifier_overall_score(
+def _extract_post_generation_verifier_overall_score(
     final_state: dict, modality: str
 ) -> Optional[float]:
-    """Pull the post-Verifier overall_score for the given modality from
+    """Pull the Post-Generation Verifier overall_score for the given modality from
     the final state. Tolerates several layout variants of
     verification_scores."""
     scores = final_state.get("verification_scores") or {}
@@ -260,9 +260,9 @@ def _aggregate_modality_stats(rows: list[dict], modality: str) -> dict:
     }
 
 
-def _verifier_correlation(rows: list[dict]) -> dict:
-    """Pearson + Spearman between Verifier overall_score and reconstruction
-    quality. Reported on the pooled set across modalities."""
+def _post_generation_verifier_correlation(rows: list[dict]) -> dict:
+    """Pearson + Spearman between Post-Generation Verifier overall_score and
+    reconstruction quality. Reported on the pooled set across modalities."""
     pairs = [
         (r["verifier_overall_score"], r["cosine_similarity"], r["mse"])
         for r in rows
@@ -438,7 +438,7 @@ def run_synthetic_missing_eval(
                 final_state.get("routing_decision"),
             )
             logger.warning("  DEBUG execution_log:")
-            for line in (final_state.get("execution_log") or []):
+            for line in final_state.get("execution_log") or []:
                 logger.warning("    - %s", line)
             logger.warning(
                 "  DEBUG missing_modalities (final) = %s",
@@ -468,7 +468,9 @@ def run_synthetic_missing_eval(
                 )
                 continue
 
-            ver_score = _extract_verifier_overall_score(final_state, masked_m)
+            ver_score = _extract_post_generation_verifier_overall_score(
+                final_state, masked_m
+            )
             verification_passed = bool(final_state.get("verification_passed", False))
             n_retries = sum(
                 1
@@ -526,7 +528,9 @@ def run_synthetic_missing_eval(
         ],
         "_overall",
     )
-    verifier_corr = _verifier_correlation(per_patient_rows)
+    post_generation_verifier_corr = _post_generation_verifier_correlation(
+        per_patient_rows
+    )
 
     summary = {
         "cohort": cohort,
@@ -538,7 +542,7 @@ def run_synthetic_missing_eval(
             "per_modality": per_modality,
             "overall": overall,
         },
-        "verifier_validation": verifier_corr,
+        "verifier_validation": post_generation_verifier_corr,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -566,15 +570,18 @@ def run_synthetic_missing_eval(
         nmse_mean = stats["normalized_mse"]["mean"]
         print(f"  {m:<16}  {n:>4}  {cos_mean:>6.3f}±{cos_std:.3f}  {nmse_mean:>10.3f}")
     print()
-    print("  Verifier ↔ reconstruction-quality correlation:")
+    print("  Post-Generation Verifier ↔ reconstruction-quality correlation:")
     print(
-        f"    Pearson  r(overall_score, cosine_sim) = {verifier_corr.get('pearson_r_cos')}"
+        "    Pearson  r(overall_score, cosine_sim) = "
+        f"{post_generation_verifier_corr.get('pearson_r_cos')}"
     )
     print(
-        f"    Spearman r(overall_score, cosine_sim) = {verifier_corr.get('spearman_r_cos')}"
+        "    Spearman r(overall_score, cosine_sim) = "
+        f"{post_generation_verifier_corr.get('spearman_r_cos')}"
     )
     print(
-        f"    Pearson  r(overall_score, -MSE)       = {verifier_corr.get('pearson_r_neg_mse')}"
+        "    Pearson  r(overall_score, -MSE)       = "
+        f"{post_generation_verifier_corr.get('pearson_r_neg_mse')}"
     )
     print()
 

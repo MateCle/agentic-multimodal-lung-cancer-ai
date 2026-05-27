@@ -260,12 +260,14 @@ class TestMakeGeneratorNode:
             available=["clinical"],
             missing=["transcriptomics"],
             mining_rules={"transcriptomics": "raw rule"},
-            guidance={"transcriptomics": "refined guidance from pre-verifier"},
+            guidance={
+                "transcriptomics": "refined guidance from Pre-Generation Verifier"
+            },
             seed=10,
         )
         result = gen_fn(state)
         log = " ".join(result["execution_log"])
-        assert "refined guidance from pre-verifier" in log
+        assert "refined guidance from Pre-Generation Verifier" in log
 
 
 # ---------------------------------------------------------------------------

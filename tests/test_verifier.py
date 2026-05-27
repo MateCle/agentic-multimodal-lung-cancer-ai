@@ -1,12 +1,13 @@
 """
-Unit tests for the real distributional + LLM Verifier nodes.
+Unit tests for the real distributional + LLM Post-Generation Verifier nodes.
 Uses synthetic data — no TCGA files or LLM API required.
 
 Covers:
-  - Pool statistics
-  - Distributional check
-  - Post-Verifier (make_verifier_node): backward-compat + best-of-N ranking
-  - Pre-Verifier (make_pre_verifier_node): guidance refinement
+    - Pool statistics
+    - Distributional check
+    - Post-Generation Verifier (make_post_generation_verifier_node):
+        backward-compat + best-of-N ranking
+    - Pre-Generation Verifier (make_pre_generation_verifier_node): guidance refinement
 """
 
 import numpy as np
@@ -17,8 +18,8 @@ from src.orchestrator.llm import MockLLMClient
 from src.orchestrator.nodes.verifier import (
     _check_distributional,
     build_pool_stats,
-    make_pre_verifier_node,
-    make_verifier_node,
+    make_post_generation_verifier_node,
+    make_pre_generation_verifier_node,
 )
 from src.orchestrator.state import PatientState
 
@@ -139,11 +140,11 @@ class TestCheckDistributional:
 
 
 # ---------------------------------------------------------------------------
-# Verifier node (real with mock LLM) tests
+# Post-Generation Verifier node (real with mock LLM) tests
 # ---------------------------------------------------------------------------
 
 
-class TestMakeVerifierNode:
+class TestMakePostGenerationVerifierNode:
     @pytest.fixture
     def pool_stats(self):
         pool = _build_synthetic_pool(20)
@@ -151,7 +152,7 @@ class TestMakeVerifierNode:
 
     def test_scores_are_between_1_and_5(self, pool_stats):
         llm = MockLLMClient()
-        verify_fn = make_verifier_node(pool_stats, llm)
+        verify_fn = make_post_generation_verifier_node(pool_stats, llm)
 
         mean = pool_stats["transcriptomics"]["mean"]
         state = _make_state(generated_modalities={"transcriptomics": mean})
@@ -164,7 +165,7 @@ class TestMakeVerifierNode:
         llm = MockLLMClient()
         # Use a low threshold so mock LLM score (which is high) still passes,
         # but distributional outliers generate hints
-        verify_fn = make_verifier_node(pool_stats, llm, threshold=5.0)
+        verify_fn = make_post_generation_verifier_node(pool_stats, llm, threshold=5.0)
 
         extreme = np.full(MODALITY_DIMS["transcriptomics"], 1000.0)
         state = _make_state(generated_modalities={"transcriptomics": extreme})
@@ -174,18 +175,18 @@ class TestMakeVerifierNode:
 
     def test_execution_log_contains_details(self, pool_stats):
         llm = MockLLMClient()
-        verify_fn = make_verifier_node(pool_stats, llm)
+        verify_fn = make_post_generation_verifier_node(pool_stats, llm)
 
         mean = pool_stats["transcriptomics"]["mean"]
         state = _make_state(generated_modalities={"transcriptomics": mean})
         result = verify_fn(state)
         log = " ".join(result["execution_log"])
-        assert "[Verifier]" in log
+        assert "[Post-Generation Verifier]" in log
         assert "distributional" in log
 
     def test_empty_generated_passes(self, pool_stats):
         llm = MockLLMClient()
-        verify_fn = make_verifier_node(pool_stats, llm)
+        verify_fn = make_post_generation_verifier_node(pool_stats, llm)
         state = _make_state(generated_modalities={})
         result = verify_fn(state)
         assert result["verification_passed"] is True
@@ -193,7 +194,7 @@ class TestMakeVerifierNode:
     def test_promotes_best_candidate_to_generated_modalities(self, pool_stats):
         """Verifier must promote the winning candidate to generated_modalities."""
         llm = MockLLMClient()
-        verify_fn = make_verifier_node(pool_stats, llm)
+        verify_fn = make_post_generation_verifier_node(pool_stats, llm)
 
         cand_a = pool_stats["transcriptomics"]["mean"].copy()
         cand_b = pool_stats["transcriptomics"]["mean"].copy() + 0.1
@@ -226,7 +227,7 @@ class TestMakeVerifierNode:
 
 
 # ---------------------------------------------------------------------------
-# Best-of-N ranking tests (post-Verifier)
+# Best-of-N ranking tests (Post-Generation Verifier)
 # ---------------------------------------------------------------------------
 
 
@@ -257,7 +258,7 @@ def _make_criteria_response(overall: float, feedback: str = "") -> dict:
     }
 
 
-class TestBestOfNVerifier:
+class TestBestOfNPostGenerationVerifier:
     @pytest.fixture
     def pool_stats(self):
         pool = _build_synthetic_pool(20)
@@ -269,7 +270,7 @@ class TestBestOfNVerifier:
         high_resp = _make_criteria_response(5.0)
         # Candidate 0 → low score, candidate 1 → high score
         llm = _SequentialMockLLM([low_resp, high_resp])
-        verify_fn = make_verifier_node(pool_stats, llm)
+        verify_fn = make_post_generation_verifier_node(pool_stats, llm)
 
         cand_low = np.zeros(MODALITY_DIMS["transcriptomics"], dtype=np.float32)
         cand_high = pool_stats["transcriptomics"]["mean"].copy()
@@ -306,7 +307,7 @@ class TestBestOfNVerifier:
     def test_n1_backward_compat_single_candidate(self, pool_stats):
         """N=1 path: result must still be promoted to generated_modalities."""
         llm = MockLLMClient()
-        verify_fn = make_verifier_node(pool_stats, llm)
+        verify_fn = make_post_generation_verifier_node(pool_stats, llm)
 
         arr = pool_stats["transcriptomics"]["mean"].copy()
         state = PatientState(
@@ -335,7 +336,7 @@ class TestBestOfNVerifier:
 
     def test_log_mentions_candidate_count_for_n_gt_1(self, pool_stats):
         llm = MockLLMClient()
-        verify_fn = make_verifier_node(pool_stats, llm)
+        verify_fn = make_post_generation_verifier_node(pool_stats, llm)
 
         arr = pool_stats["transcriptomics"]["mean"].copy()
         state = PatientState(
@@ -365,11 +366,11 @@ class TestBestOfNVerifier:
 
 
 # ---------------------------------------------------------------------------
-# Pre-Verifier guidance refinement tests
+# Pre-Generation Verifier guidance refinement tests
 # ---------------------------------------------------------------------------
 
 
-class TestPreVerifierNode:
+class TestPreGenerationVerifierNode:
     @pytest.fixture
     def pool_stats(self):
         pool = _build_synthetic_pool(20)
@@ -401,7 +402,7 @@ class TestPreVerifierNode:
 
     def test_produces_guidance_for_each_missing_modality(self, pool_stats):
         llm = MockLLMClient()
-        pre_fn = make_pre_verifier_node(llm)
+        pre_fn = make_pre_generation_verifier_node(llm)
         state = self._make_pre_state(
             mining_rules={"transcriptomics": "use smoking history"},
             missing=["transcriptomics"],
@@ -413,7 +414,7 @@ class TestPreVerifierNode:
 
     def test_guidance_persisted_in_source_map(self, pool_stats):
         llm = MockLLMClient()
-        pre_fn = make_pre_verifier_node(llm)
+        pre_fn = make_pre_generation_verifier_node(llm)
         state = self._make_pre_state(
             mining_rules={"transcriptomics": "raw rule"},
             missing=["transcriptomics"],
@@ -429,7 +430,7 @@ class TestPreVerifierNode:
             def invoke_json(self, prompt: str, system: str = "") -> dict:
                 return {"unexpected_key": "no guidance here"}
 
-        pre_fn = make_pre_verifier_node(_FailingLLM())
+        pre_fn = make_pre_generation_verifier_node(_FailingLLM())
         raw_rule = "use age and smoking history as proxies"
         state = self._make_pre_state(
             mining_rules={"methylation": raw_rule},
@@ -442,17 +443,19 @@ class TestPreVerifierNode:
 
     def test_no_missing_returns_empty_guidance(self, pool_stats):
         llm = MockLLMClient()
-        pre_fn = make_pre_verifier_node(llm)
+        pre_fn = make_pre_generation_verifier_node(llm)
         state = self._make_pre_state(mining_rules={}, missing=[])
         result = pre_fn(state)
         assert result["guidance"] == {}
 
-    def test_execution_log_contains_pre_verifier_tag(self, pool_stats):
+    def test_execution_log_contains_pre_generation_verifier_tag(self, pool_stats):
         llm = MockLLMClient()
-        pre_fn = make_pre_verifier_node(llm)
+        pre_fn = make_pre_generation_verifier_node(llm)
         state = self._make_pre_state(
             mining_rules={"wsi": "use staging info"},
             missing=["wsi"],
         )
         result = pre_fn(state)
-        assert any("[Verifier-pre]" in line for line in result["execution_log"])
+        assert any(
+            "[Pre-Generation Verifier]" in line for line in result["execution_log"]
+        )
