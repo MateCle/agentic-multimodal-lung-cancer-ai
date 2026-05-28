@@ -1,0 +1,214 @@
+[
+  {
+    "cohort": "LUAD",
+    "model": "rsf_tuned",
+    "imputation": "zero",
+    "ci_train": 0.9337378063288128,
+    "ci_val": 0.6219226260257913,
+    "ci_test": 0.6612903225806451,
+    "ci_val_complete": 0.6406117247238743,
+    "ci_val_incomplete": 0.6041666666666666,
+    "ci_test_complete": 0.6384505021520803,
+    "ci_test_incomplete": 0.7386363636363636,
+    "n_train": 251,
+    "n_val": 126,
+    "n_test": 94,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.9329,
+    "model_params": {
+      "n_estimators": 100,
+      "max_depth": 5,
+      "min_samples_split": 6,
+      "min_samples_leaf": 6,
+      "max_features": "sqrt"
+    },
+    "shap_top_features": [
+      {
+        "feature": "wsi_439",
+        "importance": 0.04795140073184871
+      },
+      {
+        "feature": "wsi_939",
+        "importance": 0.04733553343974617
+      },
+      {
+        "feature": "wsi_803",
+        "importance": 0.04706082106264414
+      },
+      {
+        "feature": "wsi_529",
+        "importance": 0.04696965286558971
+      },
+      {
+        "feature": "wsi_187",
+        "importance": 0.046929958856583937
+      },
+      {
+        "feature": "wsi_316",
+        "importance": 0.04663204528840464
+      },
+      {
+        "feature": "wsi_149",
+        "importance": 0.04647967095897019
+      },
+      {
+        "feature": "wsi_952",
+        "importance": 0.046466014024369375
+      },
+      {
+        "feature": "wsi_2",
+        "importance": 0.04627368376998427
+      },
+      {
+        "feature": "wsi_732",
+        "importance": 0.045897611094562404
+      },
+      {
+        "feature": "hvp_pc10",
+        "importance": 0.04527331664471225
+      },
+      {
+        "feature": "wsi_636",
+        "importance": 0.045181244493509166
+      },
+      {
+        "feature": "wsi_983",
+        "importance": 0.04500282685735023
+      },
+      {
+        "feature": "promoter_mean_AC006504.5,LINC00662",
+        "importance": 0.044765278286993844
+      },
+      {
+        "feature": "wsi_599",
+        "importance": 0.044486068805890615
+      },
+      {
+        "feature": "wsi_650",
+        "importance": 0.044470599053221024
+      },
+      {
+        "feature": "wsi_336",
+        "importance": 0.04432706657694352
+      },
+      {
+        "feature": "wsi_505",
+        "importance": 0.04431593082385801
+      },
+      {
+        "feature": "wsi_244",
+        "importance": 0.04425226429221554
+      },
+      {
+        "feature": "wsi_644",
+        "importance": 0.04411498392669623
+      }
+    ]
+  },
+  {
+    "cohort": "LUSC",
+    "model": "rsf_tuned",
+    "imputation": "zero",
+    "ci_train": 0.9500579225125498,
+    "ci_val": 0.4910277324632953,
+    "ci_test": 0.4959159859976663,
+    "ci_val_complete": 0.599009900990099,
+    "ci_val_incomplete": 0.30973451327433627,
+    "ci_test_complete": 0.4146341463414634,
+    "ci_test_incomplete": 0.6122448979591837,
+    "n_train": 283,
+    "n_val": 72,
+    "n_test": 90,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.9092,
+    "model_params": {
+      "n_estimators": 100,
+      "max_depth": 10,
+      "min_samples_split": 6,
+      "min_samples_leaf": 10,
+      "max_features": "sqrt"
+    },
+    "shap_top_features": [
+      {
+        "feature": "wsi_1004",
+        "importance": 0.11086303717739106
+      },
+      {
+        "feature": "wsi_882",
+        "importance": 0.10858442653294041
+      },
+      {
+        "feature": "wsi_47",
+        "importance": 0.10721967652183273
+      },
+      {
+        "feature": "wsi_200",
+        "importance": 0.10180673293902066
+      },
+      {
+        "feature": "wsi_165",
+        "importance": 0.10175018342966889
+      },
+      {
+        "feature": "wsi_173",
+        "importance": 0.10125072482356724
+      },
+      {
+        "feature": "wsi_351",
+        "importance": 0.10050148591265101
+      },
+      {
+        "feature": "wsi_772",
+        "importance": 0.09999534906017614
+      },
+      {
+        "feature": "wsi_491",
+        "importance": 0.09878816395475154
+      },
+      {
+        "feature": "wsi_787",
+        "importance": 0.09760680702077695
+      },
+      {
+        "feature": "wsi_555",
+        "importance": 0.09743091291614761
+      },
+      {
+        "feature": "wsi_621",
+        "importance": 0.09726669193992529
+      },
+      {
+        "feature": "wsi_812",
+        "importance": 0.0968882147392108
+      },
+      {
+        "feature": "wsi_827",
+        "importance": 0.09678051692206614
+      },
+      {
+        "feature": "wsi_289",
+        "importance": 0.09668482756946808
+      },
+      {
+        "feature": "wsi_93",
+        "importance": 0.09542393399794076
+      },
+      {
+        "feature": "wsi_380",
+        "importance": 0.09519511295121603
+      },
+      {
+        "feature": "wsi_439",
+        "importance": 0.09500284351636204
+      },
+      {
+        "feature": "wsi_505",
+        "importance": 0.09482789825463339
+      },
+      {
+        "feature": "wsi_139",
+        "importance": 0.09462791002375447
+      }
+    ]
+  }
+]

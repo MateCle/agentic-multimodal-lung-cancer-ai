@@ -1,0 +1,200 @@
+[
+  {
+    "cohort": "LUAD",
+    "model": "xgboost",
+    "imputation": "zero",
+    "ci_train": 0.983702117535094,
+    "ci_val": 0.6565064478311841,
+    "ci_test": 0.5898617511520737,
+    "ci_val_complete": 0.6941376380628717,
+    "ci_val_incomplete": 0.5,
+    "ci_test_complete": 0.6054519368723099,
+    "ci_test_incomplete": 0.5454545454545454,
+    "n_train": 251,
+    "n_val": 126,
+    "n_test": 94,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.9329,
+    "shap_top_features": [
+      {
+        "feature": "hvp_pc5",
+        "importance": 0.02268032543361187
+      },
+      {
+        "feature": "wsi_616",
+        "importance": 0.01920858770608902
+      },
+      {
+        "feature": "wsi_804",
+        "importance": 0.01918022148311138
+      },
+      {
+        "feature": "wsi_983",
+        "importance": 0.018932385370135307
+      },
+      {
+        "feature": "wsi_539",
+        "importance": 0.01885029301047325
+      },
+      {
+        "feature": "wsi_417",
+        "importance": 0.01884838566184044
+      },
+      {
+        "feature": "wsi_357",
+        "importance": 0.018522275611758232
+      },
+      {
+        "feature": "REACTOME_REPLACEMENT_OF_PROTAMINES_BY_NUCLEOSOMES_IN_THE_MALE_PRONUCLEUS",
+        "importance": 0.018084555864334106
+      },
+      {
+        "feature": "wsi_713",
+        "importance": 0.01807103306055069
+      },
+      {
+        "feature": "wsi_2",
+        "importance": 0.017992505803704262
+      },
+      {
+        "feature": "REACTOME_DNA_METHYLATION",
+        "importance": 0.0178989190608263
+      },
+      {
+        "feature": "REACTOME_ACTIVATED_PKN1_STIMULATES_TRANSCRIPTION_OF_AR_ANDROGEN_RECEPTOR_REGULATED_GENES_KLK2_AND_KLK3",
+        "importance": 0.017872074618935585
+      },
+      {
+        "feature": "hvp_pc10",
+        "importance": 0.017713937908411026
+      },
+      {
+        "feature": "wsi_587",
+        "importance": 0.017712609842419624
+      },
+      {
+        "feature": "wsi_814",
+        "importance": 0.01763490028679371
+      },
+      {
+        "feature": "wsi_820",
+        "importance": 0.01760915480554104
+      },
+      {
+        "feature": "REACTOME_SIRT1_NEGATIVELY_REGULATES_RRNA_EXPRESSION",
+        "importance": 0.017483141273260117
+      },
+      {
+        "feature": "wsi_980",
+        "importance": 0.017469238489866257
+      },
+      {
+        "feature": "wsi_365",
+        "importance": 0.017355863004922867
+      },
+      {
+        "feature": "wsi_877",
+        "importance": 0.017344312742352486
+      }
+    ]
+  },
+  {
+    "cohort": "LUSC",
+    "model": "xgboost",
+    "imputation": "zero",
+    "ci_train": 0.9851975801261423,
+    "ci_val": 0.5367047308319739,
+    "ci_test": 0.574095682613769,
+    "ci_val_complete": 0.504950495049505,
+    "ci_val_incomplete": 0.6106194690265486,
+    "ci_test_complete": 0.46612466124661245,
+    "ci_test_incomplete": 0.7142857142857143,
+    "n_train": 283,
+    "n_val": 72,
+    "n_test": 90,
+    "pca_n_components": 50,
+    "pca_explained_variance": 0.9092,
+    "shap_top_features": [
+      {
+        "feature": "wsi_200",
+        "importance": 0.03483793884515762
+      },
+      {
+        "feature": "wsi_812",
+        "importance": 0.033646974712610245
+      },
+      {
+        "feature": "wsi_621",
+        "importance": 0.03335469216108322
+      },
+      {
+        "feature": "wsi_983",
+        "importance": 0.03291183337569237
+      },
+      {
+        "feature": "wsi_741",
+        "importance": 0.03286786377429962
+      },
+      {
+        "feature": "wsi_1004",
+        "importance": 0.032796308398246765
+      },
+      {
+        "feature": "wsi_182",
+        "importance": 0.03278505429625511
+      },
+      {
+        "feature": "wsi_351",
+        "importance": 0.032609447836875916
+      },
+      {
+        "feature": "wsi_791",
+        "importance": 0.032560981810092926
+      },
+      {
+        "feature": "wsi_327",
+        "importance": 0.03255065158009529
+      },
+      {
+        "feature": "wsi_816",
+        "importance": 0.032066553831100464
+      },
+      {
+        "feature": "wsi_46",
+        "importance": 0.03204108402132988
+      },
+      {
+        "feature": "wsi_222",
+        "importance": 0.032026756554841995
+      },
+      {
+        "feature": "wsi_91",
+        "importance": 0.03199069947004318
+      },
+      {
+        "feature": "wsi_505",
+        "importance": 0.03198004886507988
+      },
+      {
+        "feature": "wsi_194",
+        "importance": 0.03187142312526703
+      },
+      {
+        "feature": "wsi_795",
+        "importance": 0.031537432223558426
+      },
+      {
+        "feature": "wsi_23",
+        "importance": 0.03145845979452133
+      },
+      {
+        "feature": "wsi_491",
+        "importance": 0.031453780829906464
+      },
+      {
+        "feature": "wsi_690",
+        "importance": 0.031430259346961975
+      }
+    ]
+  }
+]

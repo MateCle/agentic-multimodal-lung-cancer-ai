@@ -1,0 +1,800 @@
+{
+  "experiment": 1,
+  "name": "task_parallelism_intra_patient",
+  "config": {
+    "max_workers_list": [
+      1,
+      2,
+      4
+    ],
+    "n_patients_attempted": 16,
+    "vllm_base_url": "http://localhost:8000/v1",
+    "model": "Qwen/Qwen2.5-7B-Instruct"
+  },
+  "runs": [
+    {
+      "patient_id": "TCGA-99-8033",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 17.421689571987372,
+      "parallel_total_reported": 17.4215031429776,
+      "per_agent_seconds": {
+        "clinical": 2.621434571046848,
+        "transcriptomics": 2.409210097976029,
+        "wsi": 5.519926188979298,
+        "methylation": 6.869577649049461
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-99-8033",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 12.878778563986998,
+      "parallel_total_reported": 12.8786978230346,
+      "per_agent_seconds": {
+        "clinical": 2.4624389589880593,
+        "transcriptomics": 2.517299806000665,
+        "wsi": 6.167475687980186,
+        "methylation": 10.356535764003638
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-99-8033",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 6.9376222849823534,
+      "parallel_total_reported": 6.937532246985938,
+      "per_agent_seconds": {
+        "clinical": 2.757837555021979,
+        "transcriptomics": 2.8135783890029415,
+        "wsi": 6.038468247978017,
+        "methylation": 6.930263057991397
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-55-1594",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 1,
+      "batch_wall_seconds": 10.458628883003257,
+      "parallel_total_reported": 10.458560475031845,
+      "per_agent_seconds": {
+        "clinical": 2.256267478049267,
+        "transcriptomics": 2.5096354560228065,
+        "wsi": 5.691865550004877
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-55-1594",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 2,
+      "batch_wall_seconds": 8.124558698036708,
+      "parallel_total_reported": 8.124475852993783,
+      "per_agent_seconds": {
+        "clinical": 2.523475766996853,
+        "transcriptomics": 2.7932215569890104,
+        "wsi": 5.599910315999296
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-55-1594",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 4,
+      "batch_wall_seconds": 5.097837468027137,
+      "parallel_total_reported": 5.09775300900219,
+      "per_agent_seconds": {
+        "clinical": 2.6146347480244003,
+        "transcriptomics": 2.6126684169867076,
+        "wsi": 5.091328852984589
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-86-A4P7",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 21.491767945990432,
+      "parallel_total_reported": 21.491672618023586,
+      "per_agent_seconds": {
+        "clinical": 2.5982183039886877,
+        "transcriptomics": 2.6179616160225123,
+        "wsi": 5.228800096025225,
+        "methylation": 11.045646583021153
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-86-A4P7",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 14.249962660018355,
+      "parallel_total_reported": 14.24991020100424,
+      "per_agent_seconds": {
+        "clinical": 2.5926048229448497,
+        "transcriptomics": 2.647312132990919,
+        "wsi": 5.611626046011224,
+        "methylation": 11.598616353992838
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-86-A4P7",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 10.07017178897513,
+      "parallel_total_reported": 10.070089464017656,
+      "per_agent_seconds": {
+        "clinical": 2.753747373004444,
+        "transcriptomics": 2.810158313019201,
+        "wsi": 6.03131343604764,
+        "methylation": 10.063578255008906
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-78-7150",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 20.09054715698585,
+      "parallel_total_reported": 20.09046771901194,
+      "per_agent_seconds": {
+        "clinical": 2.3737106540356763,
+        "transcriptomics": 2.481729710008949,
+        "wsi": 5.0742732170037925,
+        "methylation": 10.159766097960528
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-78-7150",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 13.012747927976307,
+      "parallel_total_reported": 13.012688677001279,
+      "per_agent_seconds": {
+        "clinical": 2.559043751040008,
+        "transcriptomics": 3.1830936250044033,
+        "wsi": 5.66913531703176,
+        "methylation": 9.825615781999659
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-78-7150",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 10.477651629014872,
+      "parallel_total_reported": 10.477583972038701,
+      "per_agent_seconds": {
+        "clinical": 3.338616674998775,
+        "transcriptomics": 3.6949693539645523,
+        "wsi": 6.67501688998891,
+        "methylation": 10.467433287994936
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-97-8175",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 23.78586699103471,
+      "parallel_total_reported": 23.785783323983196,
+      "per_agent_seconds": {
+        "clinical": 2.482130508054979,
+        "transcriptomics": 2.408109510957729,
+        "wsi": 7.557050452975091,
+        "methylation": 11.337533676996827
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-97-8175",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 12.033098043990321,
+      "parallel_total_reported": 12.033040276030079,
+      "per_agent_seconds": {
+        "transcriptomics": 2.7016128270188347,
+        "clinical": 2.763383731013164,
+        "wsi": 7.010035584971774,
+        "methylation": 9.268704532005358
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-97-8175",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 6.705439038982149,
+      "parallel_total_reported": 6.705395606986713,
+      "per_agent_seconds": {
+        "clinical": 2.7579660679912195,
+        "transcriptomics": 3.1199123690021224,
+        "wsi": 6.224980416998733,
+        "methylation": 6.6978180519654416
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-86-8281",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 19.514743548003025,
+      "parallel_total_reported": 19.514662937028334,
+      "per_agent_seconds": {
+        "clinical": 2.395369778969325,
+        "transcriptomics": 2.4038323019631207,
+        "wsi": 6.497581861971412,
+        "methylation": 8.21699644200271
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-86-8281",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 9.977734624000732,
+      "parallel_total_reported": 9.97764888301026,
+      "per_agent_seconds": {
+        "clinical": 2.6095154169597663,
+        "transcriptomics": 2.6090690619894303,
+        "wsi": 6.180233892984688,
+        "methylation": 7.363816555007361
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-86-8281",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 8.571195347001776,
+      "parallel_total_reported": 8.57113717799075,
+      "per_agent_seconds": {
+        "clinical": 2.745748642948456,
+        "transcriptomics": 2.8617154990206473,
+        "wsi": 6.187520242994651,
+        "methylation": 8.559924906003289
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-99-8025",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 22.5214147180086,
+      "parallel_total_reported": 22.521321644017007,
+      "per_agent_seconds": {
+        "clinical": 2.7486829859553836,
+        "transcriptomics": 2.341608749993611,
+        "wsi": 5.279210005013738,
+        "methylation": 12.150711888971273
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-99-8025",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 13.28107662696857,
+      "parallel_total_reported": 13.281018427980598,
+      "per_agent_seconds": {
+        "transcriptomics": 2.349130039976444,
+        "clinical": 2.622804513957817,
+        "wsi": 6.1723900029901415,
+        "methylation": 10.657256570993923
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-99-8025",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 10.110222119023092,
+      "parallel_total_reported": 10.110114989045542,
+      "per_agent_seconds": {
+        "clinical": 2.773574724968057,
+        "transcriptomics": 3.010089331015479,
+        "wsi": 5.393853359972127,
+        "methylation": 10.101286621007603
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-50-7109",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 21.70033991197124,
+      "parallel_total_reported": 21.70025870000245,
+      "per_agent_seconds": {
+        "clinical": 2.6712870090268552,
+        "transcriptomics": 2.403575006988831,
+        "wsi": 5.671116170997266,
+        "methylation": 10.953389053989667
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-50-7109",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 13.236722470959648,
+      "parallel_total_reported": 13.23666802898515,
+      "per_agent_seconds": {
+        "clinical": 2.298526601982303,
+        "transcriptomics": 2.924993740976788,
+        "wsi": 5.840123513014987,
+        "methylation": 10.30817571899388
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-50-7109",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 11.166339241026435,
+      "parallel_total_reported": 11.166269770998042,
+      "per_agent_seconds": {
+        "clinical": 2.749277214985341,
+        "transcriptomics": 2.806433239020407,
+        "wsi": 5.973696658038534,
+        "methylation": 11.158394838043023
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-91-6830",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 1,
+      "batch_wall_seconds": 16.297553267970216,
+      "parallel_total_reported": 16.29751645901706,
+      "per_agent_seconds": {
+        "clinical": 2.443845887959469,
+        "transcriptomics": 2.3734529319917783,
+        "methylation": 11.479541142005473
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-91-6830",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 2,
+      "batch_wall_seconds": 14.605647596006747,
+      "parallel_total_reported": 14.605600508977659,
+      "per_agent_seconds": {
+        "clinical": 2.7195295720011927,
+        "transcriptomics": 3.229601464001462,
+        "methylation": 11.885235402965918
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-91-6830",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 4,
+      "batch_wall_seconds": 6.727016956952866,
+      "parallel_total_reported": 6.726962786051445,
+      "per_agent_seconds": {
+        "clinical": 2.7403023209772073,
+        "transcriptomics": 2.79657008202048,
+        "methylation": 6.7208244040375575
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-69-7973",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 20.864823508018162,
+      "parallel_total_reported": 20.86477256199578,
+      "per_agent_seconds": {
+        "clinical": 3.051470898964908,
+        "transcriptomics": 2.519386266998481,
+        "wsi": 5.519615233992226,
+        "methylation": 9.773576457984746
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-69-7973",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 13.458206028037239,
+      "parallel_total_reported": 13.458157227025367,
+      "per_agent_seconds": {
+        "clinical": 2.770791038987227,
+        "transcriptomics": 3.21504784503486,
+        "wsi": 5.437646685983054,
+        "methylation": 10.24059383297572
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-69-7973",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 10.685199830040801,
+      "parallel_total_reported": 10.685101717012003,
+      "per_agent_seconds": {
+        "clinical": 2.8389217070071027,
+        "transcriptomics": 3.732944022049196,
+        "wsi": 6.176157543959562,
+        "methylation": 10.67614821495954
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-97-8547",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 1,
+      "batch_wall_seconds": 12.941061721998267,
+      "parallel_total_reported": 12.941003853979055,
+      "per_agent_seconds": {
+        "clinical": 2.5009464439935982,
+        "transcriptomics": 2.3779901129892096,
+        "methylation": 8.061213318025693
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-97-8547",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 2,
+      "batch_wall_seconds": 9.34488681901712,
+      "parallel_total_reported": 9.344832376984414,
+      "per_agent_seconds": {
+        "clinical": 2.4711232100380585,
+        "transcriptomics": 2.5255756829865277,
+        "methylation": 6.872775970026851
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-97-8547",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 4,
+      "batch_wall_seconds": 7.96987390704453,
+      "parallel_total_reported": 7.9698046980192885,
+      "per_agent_seconds": {
+        "clinical": 2.471014626964461,
+        "transcriptomics": 2.645454109995626,
+        "methylation": 7.963889724051114
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-55-8096",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 18.947301727021113,
+      "parallel_total_reported": 18.947235072031617,
+      "per_agent_seconds": {
+        "clinical": 2.413757954025641,
+        "transcriptomics": 2.4116041430388577,
+        "wsi": 5.760088224022184,
+        "methylation": 8.360469770035706
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-55-8096",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 10.205031724995933,
+      "parallel_total_reported": 10.204951574967708,
+      "per_agent_seconds": {
+        "transcriptomics": 2.469624171964824,
+        "clinical": 2.475738768989686,
+        "wsi": 5.562149845005479,
+        "methylation": 7.728297250985634
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-55-8096",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 7.755885078047868,
+      "parallel_total_reported": 7.7557676280266605,
+      "per_agent_seconds": {
+        "transcriptomics": 2.69618079502834,
+        "clinical": 2.7589512299746275,
+        "wsi": 6.8530699129914865,
+        "methylation": 7.7461884139920585
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-55-7994",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 17.428376643976662,
+      "parallel_total_reported": 17.428284941997845,
+      "per_agent_seconds": {
+        "clinical": 2.372268269013148,
+        "transcriptomics": 2.5301659230026416,
+        "wsi": 5.619046242034528,
+        "methylation": 6.9054319489514455
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-55-7994",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 11.436789105006028,
+      "parallel_total_reported": 11.436695599986706,
+      "per_agent_seconds": {
+        "clinical": 2.3456007029744796,
+        "transcriptomics": 2.671479550015647,
+        "wsi": 8.85355784703279,
+        "methylation": 8.760839477006812
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-55-7994",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 8.442141051986255,
+      "parallel_total_reported": 8.442060150962789,
+      "per_agent_seconds": {
+        "clinical": 2.759581697988324,
+        "transcriptomics": 3.0653762739966623,
+        "wsi": 6.268455145996995,
+        "methylation": 8.43007421103539
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-05-4249",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 1,
+      "batch_wall_seconds": 10.547239441948477,
+      "parallel_total_reported": 10.547202223038767,
+      "per_agent_seconds": {
+        "clinical": 2.3845234109903686,
+        "transcriptomics": 2.693814543017652,
+        "wsi": 5.46827873197617
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-05-4249",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 2,
+      "batch_wall_seconds": 8.794514396984596,
+      "parallel_total_reported": 8.794459575030487,
+      "per_agent_seconds": {
+        "clinical": 2.467826815962326,
+        "transcriptomics": 2.735236859996803,
+        "wsi": 6.325831077992916
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-05-4249",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 4,
+      "batch_wall_seconds": 5.866580813017208,
+      "parallel_total_reported": 5.866526602010708,
+      "per_agent_seconds": {
+        "clinical": 2.903209587035235,
+        "transcriptomics": 3.257130771991797,
+        "wsi": 5.860034939018078
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-49-6742",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 1,
+      "batch_wall_seconds": 17.609449498995673,
+      "parallel_total_reported": 17.609384156996384,
+      "per_agent_seconds": {
+        "clinical": 2.3830968299880624,
+        "transcriptomics": 2.56368211802328,
+        "wsi": 4.892606149020139,
+        "methylation": 7.769114866037853
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-49-6742",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 2,
+      "batch_wall_seconds": 9.042983819032088,
+      "parallel_total_reported": 9.042891685967334,
+      "per_agent_seconds": {
+        "clinical": 2.746224078000523,
+        "transcriptomics": 3.0028020659810863,
+        "wsi": 6.177292431995738,
+        "methylation": 6.035869469982572
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-49-6742",
+      "cohort": "luad",
+      "n_modalities_present": 4,
+      "max_workers": 4,
+      "batch_wall_seconds": 7.599369068979286,
+      "parallel_total_reported": 7.599308695993386,
+      "per_agent_seconds": {
+        "transcriptomics": 2.7262186250300147,
+        "clinical": 2.7296616110252216,
+        "wsi": 5.808018564013764,
+        "methylation": 7.588447632966563
+      },
+      "n_agents_run": 4
+    },
+    {
+      "patient_id": "TCGA-55-7284",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 1,
+      "batch_wall_seconds": 15.029948287992738,
+      "parallel_total_reported": 15.029871684964746,
+      "per_agent_seconds": {
+        "clinical": 2.6670560460188426,
+        "wsi": 5.174555670004338,
+        "methylation": 7.187523550004698
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-55-7284",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 2,
+      "batch_wall_seconds": 12.523882484994829,
+      "parallel_total_reported": 12.523818554996978,
+      "per_agent_seconds": {
+        "clinical": 2.572161871998105,
+        "wsi": 6.933625621022657,
+        "methylation": 9.950681528018322
+      },
+      "n_agents_run": 3
+    },
+    {
+      "patient_id": "TCGA-55-7284",
+      "cohort": "luad",
+      "n_modalities_present": 3,
+      "max_workers": 4,
+      "batch_wall_seconds": 10.967343916010577,
+      "parallel_total_reported": 10.967302289034706,
+      "per_agent_seconds": {
+        "clinical": 2.6702976530068554,
+        "wsi": 5.226309818972368,
+        "methylation": 10.963117824983783
+      },
+      "n_agents_run": 3
+    }
+  ],
+  "aggregated": {
+    "1": {
+      "n_runs": 16,
+      "mean": 17.915672051556612,
+      "median": 18.278375613008393,
+      "stdev": 4.04970854866303,
+      "min": 10.458628883003257,
+      "max": 23.78586699103471
+    },
+    "2": {
+      "n_runs": 16,
+      "mean": 11.637913849375764,
+      "median": 12.278490264492575,
+      "stdev": 2.0950882426550854,
+      "min": 8.124558698036708,
+      "max": 14.605647596006747
+    },
+    "4": {
+      "n_runs": 16,
+      "mean": 8.446868096194521,
+      "median": 8.206007479515392,
+      "stdev": 1.929858089609875,
+      "min": 5.097837468027137,
+      "max": 11.166339241026435
+    }
+  },
+  "gpu_snapshot_after": {
+    "timestamp": 1779496015.2437725,
+    "gpus": [
+      {
+        "gpu": 0,
+        "util_pct": 100,
+        "mem_used_mb": 9170,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 1,
+        "util_pct": 0,
+        "mem_used_mb": 3,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 2,
+        "util_pct": 0,
+        "mem_used_mb": 3,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 3,
+        "util_pct": 0,
+        "mem_used_mb": 2832,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 4,
+        "util_pct": 98,
+        "mem_used_mb": 16836,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 5,
+        "util_pct": 0,
+        "mem_used_mb": 3,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 6,
+        "util_pct": 0,
+        "mem_used_mb": 2841,
+        "mem_total_mb": 23034
+      },
+      {
+        "gpu": 7,
+        "util_pct": 0,
+        "mem_used_mb": 3,
+        "mem_total_mb": 23034
+      }
+    ]
+  }
+}
