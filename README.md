@@ -81,7 +81,7 @@ project/
 │       ├── run.py                 # CLI entry point for the orchestrator
 │       ├── parallel.py            # Parallel agent execution utility
 │       ├── reliability.py         # Bootstrap CI, Mahalanobis OOD, provenance scoring
-│       ├── agents/                # Modality-specific sub-agents (used by Miner/Generator)
+│       ├── agents/                # Modality-specific sub-agents (used by Miner) and language agent
 │       │   ├── base.py            # Abstract base agent
 │       │   ├── clinical.py        # Clinical modality agent
 │       │   ├── genomic.py         # Transcriptomics modality agent
@@ -92,7 +92,7 @@ project/
 │           ├── planner.py         # Routing decision based on modality availability
 │           ├── miner.py           # LLM-based cross-modal mining rule generation
 │           ├── generator.py       # LLM-guided FAISS k-NN retrieval for missing modalities
-│           ├── verifier.py        # Multi-criteria LLM scoring + self-refinement
+│           ├── verifier.py        # Pre-gen guidance refinement + post-gen best-of-N scoring & self-refinement
 │           ├── predictor.py       # Survival prediction + reliability metadata
 │           └── router.py          # Conditional edge functions for DAG branching
 ├── tests/                         # Unit and integration tests (pytest)
@@ -160,12 +160,12 @@ Outputs C-index metrics to `results/` and diagnostic plots.
 
 **Mock mode (no GPU, no LLM):**
 ```bash
-python -m src.orchestrator.run --patient TCGA-05-4244 --verbose --mock
+python -m src.orchestrator.run --patient <id> --verbose --mock
 ```
 
 **Real mode (requires vLLM server running):**
 ```bash
-python -m src.orchestrator.run --patient TCGA-05-4244 --verbose
+python -m src.orchestrator.run --patient <id> --verbose
 ```
 
 **Multiple patients:**
